@@ -11,10 +11,19 @@ import {MockPoolInherited} from "lib/aave-v3-core/contracts/mocks/helpers/MockPo
 import {PriceOracle} from "lib/aave-v3-core/contracts/mocks/oracle/PriceOracle.sol";
 import {MockPoolDataProvider} from "test/mocks/MockPoolDataProvider.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
+import "lib/aave-v3-core/contracts/interfaces/IPool.sol";
 
 contract LiquidateUserTest is Test {
+    struct Users {
+        address id;
+        address debtToken;
+        address collateralToken;
+    }
+
     uint256 public constant STARTING_USER_BALANCE = 10 ether;
     uint256 public constant STARTING_TOKEN_AMOUNT = 100 ether;
+    uint256 public constant SUPPLY = 0.1 ether;
+    uint256 public constant BORROW = 0.1 ether;
 
     address public poolAddress;
     address public dataProviderAddress;
@@ -42,8 +51,25 @@ contract LiquidateUserTest is Test {
 
         vm.startPrank(USER);
         collateral_token.mint(STARTING_TOKEN_AMOUNT);
+        collateral_token.approve(address(poolAddress), SUPPLY);
         extra_token.mint(STARTING_TOKEN_AMOUNT);
+        extra_token.approve(address(poolAddress), SUPPLY);
         weth.mint(STARTING_USER_BALANCE);
+        weth.approve(address(poolAddress), SUPPLY);
+        vm.stopPrank();
+    }
+
+    function testContractIsBeingCallSuccessfully() public {
+        // creat aave user account
+        vm.startPrank(USER);
+        // MockPoolInherited(poolAddress).supply(address(collateral_token), SUPPLY, USER, 0);
+        // MockPoolInherited(poolAddress).borrow(address(collateral_token), BORROW, 1, 0, USER);
+
+        LiquidateUser.User[] memory user = new LiquidateUser.User[](1);
+
+        user[0] = LiquidateUser.User({id: USER, debtToken: address(weth), collateralToken: address(weth)});
+
+        liquidateUser.liquidateUserAccounts(user);
         vm.stopPrank();
     }
 }
