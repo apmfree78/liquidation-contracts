@@ -28,6 +28,7 @@ contract LiquidateUserTest is Test {
     address public poolAddress;
     address public dataProviderAddress;
     address public priceOracleAddress;
+    address public poolAddressesProvider;
 
     LiquidateUser liquidateUser;
     MintableERC20 public collateral_token;
@@ -41,7 +42,8 @@ contract LiquidateUserTest is Test {
         (liquidateUser, helperConfig) = deployLiquidateUser.run();
 
         // set address for contracts
-        (poolAddress, dataProviderAddress, priceOracleAddress) = helperConfig.activeNetworkConfig();
+        (poolAddress, dataProviderAddress, priceOracleAddress, poolAddressesProvider) =
+            helperConfig.activeNetworkConfig();
 
         // fund user
         vm.deal(USER, STARTING_USER_BALANCE);
@@ -60,7 +62,6 @@ contract LiquidateUserTest is Test {
     }
 
     function testContractIsBeingCallSuccessfully() public {
-        MockPoolInherited mockPool = MockPoolInherited(poolAddress);
         // creat aave user account
         vm.startPrank(USER);
         // MockPoolInherited(poolAddress).supply(address(collateral_token), SUPPLY, USER, 0);

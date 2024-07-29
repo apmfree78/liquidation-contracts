@@ -5,9 +5,10 @@ import {console} from "lib/forge-std/src/Test.sol";
 import "lib/forge-std/src/interfaces/IERC20.sol";
 import "lib/aave-v3-core/contracts/interfaces/IPool.sol";
 import "lib/aave-v3-core/contracts/interfaces/IPriceOracle.sol";
+import "lib/aave-v3-core/contracts/flashloan/interfaces/IFlashLoanSimpleReceiver.sol";
 import {IPoolDataProvider} from "lib/aave-v3-core/contracts/interfaces/IPoolDataProvider.sol";
 
-contract LiquidateUser {
+contract LiquidateUser is IFlashLoanSimpleReceiver {
     struct User {
         address id;
         address debtToken;
@@ -24,11 +25,18 @@ contract LiquidateUser {
     address private immutable i_aavePoolAddress;
     address private immutable i_aaveDataProviderAddress;
     address private immutable i_aavePriceOracleAddress;
+    address private immutable i_aavePoolAddressProvider;
 
-    constructor(address aavePoolAddress, address aaveDataProviderAddress, address aavePriceOracleAddress) {
+    constructor(
+        address aavePoolAddress,
+        address aaveDataProviderAddress,
+        address aavePriceOracleAddress,
+        address aavePoolAddressProvider
+    ) {
         i_aavePoolAddress = aavePoolAddress;
         i_aaveDataProviderAddress = aaveDataProviderAddress;
         i_aavePriceOracleAddress = aavePriceOracleAddress;
+        i_aavePoolAddressProvider = aavePoolAddressProvider;
     }
 
     function findAndLiquidateAccount(User[] calldata users) external {
@@ -162,5 +170,18 @@ contract LiquidateUser {
         IPoolDataProvider poolDataProvider = IPoolDataProvider(i_aaveDataProviderAddress);
         (, uint256 stableDebt, uint256 variableDebt,,,,,,) = poolDataProvider.getUserReserveData(token, user);
         return stableDebt + variableDebt;
+    }
+
+    function executeOperation(address asset, uint256 amount, uint256 premium, address initiator, bytes calldata params)
+        external
+        returns (bool)
+    {}
+
+    function ADDRESSES_PROVIDER() external view returns (IPoolAddressesProvider) {
+        return IPoolAddressesProvider(i_aavePoolAddressProvider);
+    }
+
+    function POOL() external view returns (IPool) {
+        return IPool(i_aavePoolAddress);
     }
 }

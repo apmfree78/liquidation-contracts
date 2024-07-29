@@ -13,11 +13,12 @@ import {LiquidateUser} from "src/LiquidateUser.sol";
 contract DeployLiquidateUser is Script {
     function run() external returns (LiquidateUser, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
-        (address poolAddress, address dataProviderAddress, address priceOracleAddress) =
+        (address poolAddress, address dataProviderAddress, address priceOracleAddress, address poolAddressesProvider) =
             helperConfig.activeNetworkConfig();
 
         vm.startBroadcast();
-        LiquidateUser liquidateUser = new LiquidateUser(poolAddress, dataProviderAddress, priceOracleAddress);
+        LiquidateUser liquidateUser =
+            new LiquidateUser(poolAddress, dataProviderAddress, priceOracleAddress, poolAddressesProvider);
         vm.stopBroadcast();
 
         return (liquidateUser, helperConfig);
