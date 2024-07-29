@@ -14,6 +14,11 @@ contract LiquidateUser {
         address collateralToken;
     }
 
+    struct AccountToLiquidation {
+        User user;
+        uint256 debtToCover;
+    }
+
     uint256 private constant LIQUIDATION_THRESHOLD = 1e18;
     uint256 private constant PROFIT_THRESHOLD = 50e18;
     address private immutable i_aavePoolAddress;
@@ -26,15 +31,17 @@ contract LiquidateUser {
         i_aavePriceOracleAddress = aavePriceOracleAddress;
     }
 
-    function liquidateUserAccounts(User[] calldata users) external {
+    function findAndLiquidateAccount(User[] calldata users) external {
         uint256 userCount = users.length;
         IPool aavePool = IPool(i_aavePoolAddress);
+        uint256 maxProfit = 0;
+        AccountToLiquidation memory topProfitAccount;
 
+        // cycle through each user account to see if
+        // if health factor is in right range
+        // AND profit after liquidation is sufficient hieght
         for (uint256 i = 0; i < userCount; i++) {
             address id = users[i].id;
-            address debtTokenAddress = users[i].debtToken;
-            address collateralTokenAddress = users[i].collateralToken;
-            IERC20 debtToken = IERC20(debtTokenAddress);
 
             // get health factor
             (,,, uint256 liquidationThreshold,, uint256 healthFactor) = aavePool.getUserAccountData(id);
@@ -44,14 +51,38 @@ contract LiquidateUser {
                 // checkout profitability
                 (uint256 profit, uint256 debtToCover) = getUserDebtToCoverAndProfit(users[i], liquidationThreshold);
 
-                if (profit > PROFIT_THRESHOLD) {
+                if (profit > PROFIT_THRESHOLD && profit > maxProfit) {
+                    maxProfit = profit;
+
+                    topProfitAccount = AccountToLiquidation({user: users[i], debtToCover: debtToCover});
                     // sender has sufficient balance to cover liquidation call
-                    if (debtToken.balanceOf(msg.sender) > debtToCover) {
-                        // submit account for liquidation,
-                        console.log("liquidating account");
-                        aavePool.liquidationCall(collateralTokenAddress, debtTokenAddress, id, type(uint256).max, false);
-                    }
                 }
+            }
+        }
+
+        liquidateAccount(topProfitAccount);
+    }
+
+    function liquidateAccount(AccountToLiquidation memory account) private {
+        if (account.user.id != address(0)) {
+            IPool aavePool = IPool(i_aavePoolAddress);
+            IERC20 debtToken = IERC20(account.user.debtToken);
+
+            // TODO - ADD FLASH LOAN
+
+            // if account fitting all criteria found , lets liquidate
+            if (debtToken.balanceOf(address(this)) > account.debtToCover) {
+                // submit account for liquidation,
+                console.log("liquidating account");
+
+                debtToken.approve(address(aavePool), account.debtToCover);
+
+                aavePool.liquidationCall(
+                    account.user.collateralToken, account.user.debtToken, account.user.id, account.debtToCover, false
+                );
+                console.log("Liqudation executed!");
+            } else {
+                console.log("Not enough tokens to cover the liqudation");
             }
         }
     }
@@ -66,23 +97,18 @@ contract LiquidateUser {
         uint256 standardScaleFactor = 10 ** 18;
         uint256 bpsFactor = 10 ** 4;
 
-        // get debt amount
-        (, uint256 stableDebt, uint256 variableDebt,,,,,,) =
-            poolDataProvider.getUserReserveData(user.debtToken, user.id);
-
-        (uint256 debtDecimals,,,,,,,,,) = poolDataProvider.getReserveConfigurationData(user.debtToken);
+        uint256 totalDebt = getAaveTotalDebt(user.debtToken, user.id);
 
         // get collateral amount, token price, and liquidation values
         (uint256 aTokenBalance,,,,,,,, bool useAsCollateral) =
             poolDataProvider.getUserReserveData(user.collateralToken, user.id);
 
-        (uint256 collateralDecimals,,, uint256 liquidationBonus,,,,,,) =
-            poolDataProvider.getReserveConfigurationData(user.collateralToken);
+        uint256 liquidationBonus = getAaveLiquidationBonus(user.collateralToken);
         uint256 collateralPrice = priceOracle.getAssetPrice(user.collateralToken);
 
-        uint256 totalDebt = stableDebt + variableDebt;
-        uint256 debtDecimalFactor = 10 ** debtDecimals;
-        uint256 collateralDecimalFactor = 10 ** collateralDecimals;
+        // uint256 totalDebt = stableDebt + variableDebt;
+        uint256 debtDecimalFactor = getTokenDecimalFactorFromAave(user.debtToken);
+        uint256 collateralDecimalFactor = getTokenDecimalFactorFromAave(user.collateralToken);
 
         /**
          * CALCULATE DEBT TO COVER - THIS WILL DETERMINE HOW MUCH COLLATERAL TO BORROW FROM FLASH FLOAN
@@ -118,5 +144,23 @@ contract LiquidateUser {
         } else {
             return (0, 0);
         }
+    }
+
+    function getTokenDecimalFactorFromAave(address token) private view returns (uint256) {
+        IPoolDataProvider poolDataProvider = IPoolDataProvider(i_aaveDataProviderAddress);
+        (uint256 debtDecimals,,,,,,,,,) = poolDataProvider.getReserveConfigurationData(token);
+        return 10 ** debtDecimals;
+    }
+
+    function getAaveLiquidationBonus(address token) private view returns (uint256) {
+        IPoolDataProvider poolDataProvider = IPoolDataProvider(i_aaveDataProviderAddress);
+        (,,, uint256 liquidationBonus,,,,,,) = poolDataProvider.getReserveConfigurationData(token);
+        return liquidationBonus;
+    }
+
+    function getAaveTotalDebt(address token, address user) private view returns (uint256) {
+        IPoolDataProvider poolDataProvider = IPoolDataProvider(i_aaveDataProviderAddress);
+        (, uint256 stableDebt, uint256 variableDebt,,,,,,) = poolDataProvider.getUserReserveData(token, user);
+        return stableDebt + variableDebt;
     }
 }

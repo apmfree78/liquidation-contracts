@@ -60,6 +60,7 @@ contract LiquidateUserTest is Test {
     }
 
     function testContractIsBeingCallSuccessfully() public {
+        MockPoolInherited mockPool = MockPoolInherited(poolAddress);
         // creat aave user account
         vm.startPrank(USER);
         // MockPoolInherited(poolAddress).supply(address(collateral_token), SUPPLY, USER, 0);
@@ -69,7 +70,7 @@ contract LiquidateUserTest is Test {
 
         user[0] = LiquidateUser.User({id: USER, debtToken: address(weth), collateralToken: address(weth)});
 
-        liquidateUser.liquidateUserAccounts(user);
+        liquidateUser.findAndLiquidateAccount(user);
         vm.stopPrank();
     }
 }
