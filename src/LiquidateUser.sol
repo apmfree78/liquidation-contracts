@@ -8,10 +8,12 @@ import {IPriceOracle} from "lib/aave-v3-core/contracts/interfaces/IPriceOracle.s
 import {IFlashLoanSimpleReceiver} from "lib/aave-v3-core/contracts/flashloan/interfaces/IFlashLoanSimpleReceiver.sol";
 import {IPoolDataProvider, IPoolAddressesProvider} from "lib/aave-v3-core/contracts/interfaces/IPoolDataProvider.sol";
 import {ISwapRouter} from "lib/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+import "utils/ReentracyGuard.sol";
 
-contract LiquidateUser is IFlashLoanSimpleReceiver {
+contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
     error NoCollateralToken();
     error InsufficientBalanceToPayLoan();
+    error NotEnoughDebtTokenToCoverLiquidation();
 
     struct User {
         address id;
@@ -27,6 +29,9 @@ contract LiquidateUser is IFlashLoanSimpleReceiver {
     uint256 private constant LIQUIDATION_THRESHOLD = 1e18;
     uint256 private constant MIN_HEALTH_SCORE_THRESHOLD = 1e17;
     uint256 private constant PROFIT_THRESHOLD = 50e18;
+    uint256 private constant STANDARD_SCALE_FACTOR = 1e18;
+    uint256 private constant BPS_FACTOR = 1e4;
+
     address private immutable i_aavePoolAddress;
     address private immutable i_aaveDataProviderAddress;
     address private immutable i_aavePriceOracleAddress;
@@ -50,7 +55,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver {
         i_walletAddress = walletAddress;
     }
 
-    function findAndLiquidateAccount(User[] calldata users) external {
+    function findAndLiquidateAccount(User[] calldata users) external noReentrancy {
         uint256 userCount = users.length;
         IPool aavePool = IPool(i_aavePoolAddress);
         uint256 maxProfit = 0;
@@ -92,6 +97,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver {
     // this function gets called as callback when aavePool.flashLoanSimple(..) is run
     function executeOperation(address asset, uint256 amount, uint256 premium, address, bytes calldata params)
         external
+        noReentrancy
         returns (bool)
     {
         (address collateralTokenAddress, address userId) = abi.decode(params, (address, address));
@@ -143,7 +149,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver {
         swapRouter.exactOutputSingle(swapParams);
 
         // check swap was a successful
-        if (debtToken.balanceOf(address(this)) >= loanRepaymentAmount) {
+        if (debtToken.balanceOf(address(this)) < loanRepaymentAmount) {
             revert InsufficientBalanceToPayLoan();
         }
     }
@@ -153,7 +159,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver {
         IERC20 debtToken = IERC20(account.user.debtToken);
 
         // if account fitting all criteria found , lets liquidate
-        if (debtToken.balanceOf(address(this)) > account.debtToCover) {
+        if (debtToken.balanceOf(address(this)) >= account.debtToCover) {
             // submit account for liquidation,
             console.log("liquidating account");
 
@@ -165,6 +171,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver {
             console.log("Liqudation executed!");
         } else {
             console.log("Not enough tokens to cover the liqudation");
+            revert NotEnoughDebtTokenToCoverLiquidation();
         }
     }
 
@@ -175,7 +182,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver {
         IERC20 collateralToken = IERC20(collateralTokenAddress);
 
         uint256 collateralAmount = collateralToken.balanceOf(address(this));
-        uint256 debtAmount = collateralToken.balanceOf(address(this));
+        uint256 debtAmount = debtToken.balanceOf(address(this));
 
         collateralToken.transfer(i_walletAddress, collateralAmount);
 
@@ -183,6 +190,9 @@ contract LiquidateUser is IFlashLoanSimpleReceiver {
             uint256 remainingBalance = debtAmount - repaymentAmount;
             debtToken.transfer(i_walletAddress, remainingBalance);
         }
+
+        uint256 debtBalance = debtToken.balanceOf(address(this));
+        if (debtBalance < repaymentAmount) revert InsufficientBalanceToPayLoan();
     }
 
     function getUserDebtToCoverAndProfit(User calldata user, uint256 liquidationThreshold)
@@ -192,8 +202,6 @@ contract LiquidateUser is IFlashLoanSimpleReceiver {
     {
         IPoolDataProvider poolDataProvider = IPoolDataProvider(i_aaveDataProviderAddress);
         IPriceOracle priceOracle = IPriceOracle(i_aavePriceOracleAddress);
-        uint256 standardScaleFactor = 10 ** 18;
-        uint256 bpsFactor = 10 ** 4;
 
         uint256 totalDebt = getAaveTotalDebt(user.debtToken, user.id);
 
@@ -219,7 +227,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver {
         debtToCover = debtToCover * collateralPrice;
 
         // final scaled debtToCover value
-        debtToCover = debtToCover / standardScaleFactor;
+        debtToCover = debtToCover / STANDARD_SCALE_FACTOR;
 
         /**
          * CALCULATE ESTIMATED PROFIT - THIS WILL DETERMINE IF ITS WORTH LIQUIDATING ACCOUNT
@@ -232,11 +240,11 @@ contract LiquidateUser is IFlashLoanSimpleReceiver {
 
             profitUsd = profitUsd * liquidationBonus;
 
-            profitUsd = profitUsd * (liquidationBonus - bpsFactor);
+            profitUsd = profitUsd * (liquidationBonus - BPS_FACTOR);
 
-            profitUsd = profitUsd / bpsFactor;
+            profitUsd = profitUsd / BPS_FACTOR;
 
-            profitUsd = profitUsd / bpsFactor;
+            profitUsd = profitUsd / BPS_FACTOR;
 
             return (profitUsd, debtToCover);
         } else {
