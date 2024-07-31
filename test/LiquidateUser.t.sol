@@ -29,6 +29,8 @@ contract LiquidateUserTest is Test {
     address public dataProviderAddress;
     address public priceOracleAddress;
     address public poolAddressesProvider;
+    address public swapRouterAddress;
+    address public walletAddress;
 
     LiquidateUser liquidateUser;
     MintableERC20 public collateral_token;
@@ -42,8 +44,8 @@ contract LiquidateUserTest is Test {
         (liquidateUser, helperConfig) = deployLiquidateUser.run();
 
         // set address for contracts
-        (poolAddress, dataProviderAddress, priceOracleAddress, poolAddressesProvider) =
-            helperConfig.activeNetworkConfig();
+        (poolAddress, dataProviderAddress, priceOracleAddress, poolAddressesProvider, swapRouterAddress, walletAddress)
+        = helperConfig.activeNetworkConfig();
 
         // fund user
         vm.deal(USER, STARTING_USER_BALANCE);

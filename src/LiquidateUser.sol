@@ -2,13 +2,17 @@
 pragma solidity ^0.8.18;
 
 import {console} from "lib/forge-std/src/Test.sol";
-import "lib/forge-std/src/interfaces/IERC20.sol";
-import "lib/aave-v3-core/contracts/interfaces/IPool.sol";
-import "lib/aave-v3-core/contracts/interfaces/IPriceOracle.sol";
-import "lib/aave-v3-core/contracts/flashloan/interfaces/IFlashLoanSimpleReceiver.sol";
-import {IPoolDataProvider} from "lib/aave-v3-core/contracts/interfaces/IPoolDataProvider.sol";
+import {IERC20} from "lib/forge-std/src/interfaces/IERC20.sol";
+import {IPool} from "lib/aave-v3-core/contracts/interfaces/IPool.sol";
+import {IPriceOracle} from "lib/aave-v3-core/contracts/interfaces/IPriceOracle.sol";
+import {IFlashLoanSimpleReceiver} from "lib/aave-v3-core/contracts/flashloan/interfaces/IFlashLoanSimpleReceiver.sol";
+import {IPoolDataProvider, IPoolAddressesProvider} from "lib/aave-v3-core/contracts/interfaces/IPoolDataProvider.sol";
+import {ISwapRouter} from "lib/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 
 contract LiquidateUser is IFlashLoanSimpleReceiver {
+    error NoCollateralToken();
+    error InsufficientBalanceToPayLoan();
+
     struct User {
         address id;
         address debtToken;
@@ -21,22 +25,29 @@ contract LiquidateUser is IFlashLoanSimpleReceiver {
     }
 
     uint256 private constant LIQUIDATION_THRESHOLD = 1e18;
+    uint256 private constant MIN_HEALTH_SCORE_THRESHOLD = 1e17;
     uint256 private constant PROFIT_THRESHOLD = 50e18;
     address private immutable i_aavePoolAddress;
     address private immutable i_aaveDataProviderAddress;
     address private immutable i_aavePriceOracleAddress;
-    address private immutable i_aavePoolAddressProvider;
+    address private immutable i_aavePoolAddressProviderAddress;
+    address private immutable i_swapRouterAddress;
+    address private immutable i_walletAddress; // send profit here at end
 
     constructor(
         address aavePoolAddress,
         address aaveDataProviderAddress,
         address aavePriceOracleAddress,
-        address aavePoolAddressProvider
+        address aavePoolAddressProviderAddress,
+        address swapRouterAddress,
+        address walletAddress
     ) {
         i_aavePoolAddress = aavePoolAddress;
         i_aaveDataProviderAddress = aaveDataProviderAddress;
         i_aavePriceOracleAddress = aavePriceOracleAddress;
-        i_aavePoolAddressProvider = aavePoolAddressProvider;
+        i_aavePoolAddressProviderAddress = aavePoolAddressProviderAddress;
+        i_swapRouterAddress = swapRouterAddress;
+        i_walletAddress = walletAddress;
     }
 
     function findAndLiquidateAccount(User[] calldata users) external {
@@ -55,7 +66,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver {
             (,,, uint256 liquidationThreshold,, uint256 healthFactor) = aavePool.getUserAccountData(id);
             console.log("health factor =>", healthFactor);
 
-            if (healthFactor < LIQUIDATION_THRESHOLD) {
+            if (healthFactor < LIQUIDATION_THRESHOLD && healthFactor > MIN_HEALTH_SCORE_THRESHOLD) {
                 // checkout profitability
                 (uint256 profit, uint256 debtToCover) = getUserDebtToCoverAndProfit(users[i], liquidationThreshold);
 
@@ -68,30 +79,109 @@ contract LiquidateUser is IFlashLoanSimpleReceiver {
             }
         }
 
-        liquidateAccount(topProfitAccount);
+        // check that we found a valid and profitable account to liquidate
+        if (topProfitAccount.user.id != address(0)) {
+            // FLASH LOAN for DebtToken amount of DebtToCover
+            bytes memory params = abi.encode(topProfitAccount.user.collateralToken, topProfitAccount.user.id);
+            aavePool.flashLoanSimple(
+                address(this), topProfitAccount.user.debtToken, topProfitAccount.debtToCover, params, 0
+            );
+        }
+    }
+
+    // this function gets called as callback when aavePool.flashLoanSimple(..) is run
+    function executeOperation(address asset, uint256 amount, uint256 premium, address, bytes calldata params)
+        external
+        returns (bool)
+    {
+        (address collateralTokenAddress, address userId) = abi.decode(params, (address, address));
+
+        AccountToLiquidation memory account = AccountToLiquidation({
+            user: User({id: userId, debtToken: asset, collateralToken: collateralTokenAddress}),
+            debtToCover: amount
+        });
+
+        liquidateAccount(account);
+
+        // now that account is liquidated need to swap the collateral token recieved for
+        // debt token (asset) in amount of amount + premium
+        swapCollateralForDebtTokenToRepayLoan(collateralTokenAddress, asset, amount + premium);
+
+        transferProfitToWallet(collateralTokenAddress, asset, amount + premium);
+        return true;
+    }
+
+    function swapCollateralForDebtTokenToRepayLoan(
+        address collateralTokenAddress,
+        address debtTokenAddress,
+        uint256 debtAmount
+    ) private {
+        IERC20 debtToken = IERC20(debtTokenAddress);
+        IERC20 collateralToken = IERC20(collateralTokenAddress);
+        ISwapRouter swapRouter = ISwapRouter(i_swapRouterAddress);
+
+        // sanity check , contract should now have a positive balance of collateral token
+        if (collateralToken.balanceOf(address(this)) == 0) revert NoCollateralToken();
+
+        // need amount + premium of debtToken to pay off loan, use uniswap to get this amount
+        uint256 loanRepaymentAmount = debtAmount;
+        uint256 amountInMax = collateralToken.balanceOf(address(this));
+
+        ISwapRouter.ExactOutputSingleParams memory swapParams = ISwapRouter.ExactOutputSingleParams({
+            tokenIn: collateralTokenAddress,
+            tokenOut: debtTokenAddress,
+            fee: 3000,
+            recipient: address(this),
+            deadline: block.timestamp + 300,
+            amountOut: loanRepaymentAmount,
+            amountInMaximum: amountInMax,
+            sqrtPriceLimitX96: 0
+        });
+
+        // token swap
+        collateralToken.approve(address(swapRouter), amountInMax);
+        swapRouter.exactOutputSingle(swapParams);
+
+        // check swap was a successful
+        if (debtToken.balanceOf(address(this)) >= loanRepaymentAmount) {
+            revert InsufficientBalanceToPayLoan();
+        }
     }
 
     function liquidateAccount(AccountToLiquidation memory account) private {
-        if (account.user.id != address(0)) {
-            IPool aavePool = IPool(i_aavePoolAddress);
-            IERC20 debtToken = IERC20(account.user.debtToken);
+        IPool aavePool = IPool(i_aavePoolAddress);
+        IERC20 debtToken = IERC20(account.user.debtToken);
 
-            // TODO - ADD FLASH LOAN
+        // if account fitting all criteria found , lets liquidate
+        if (debtToken.balanceOf(address(this)) > account.debtToCover) {
+            // submit account for liquidation,
+            console.log("liquidating account");
 
-            // if account fitting all criteria found , lets liquidate
-            if (debtToken.balanceOf(address(this)) > account.debtToCover) {
-                // submit account for liquidation,
-                console.log("liquidating account");
+            debtToken.approve(address(aavePool), account.debtToCover);
 
-                debtToken.approve(address(aavePool), account.debtToCover);
+            aavePool.liquidationCall(
+                account.user.collateralToken, account.user.debtToken, account.user.id, account.debtToCover, false
+            );
+            console.log("Liqudation executed!");
+        } else {
+            console.log("Not enough tokens to cover the liqudation");
+        }
+    }
 
-                aavePool.liquidationCall(
-                    account.user.collateralToken, account.user.debtToken, account.user.id, account.debtToCover, false
-                );
-                console.log("Liqudation executed!");
-            } else {
-                console.log("Not enough tokens to cover the liqudation");
-            }
+    function transferProfitToWallet(address collateralTokenAddress, address debtTokenAddress, uint256 repaymentAmount)
+        private
+    {
+        IERC20 debtToken = IERC20(debtTokenAddress);
+        IERC20 collateralToken = IERC20(collateralTokenAddress);
+
+        uint256 collateralAmount = collateralToken.balanceOf(address(this));
+        uint256 debtAmount = collateralToken.balanceOf(address(this));
+
+        collateralToken.transfer(i_walletAddress, collateralAmount);
+
+        if (debtAmount > repaymentAmount) {
+            uint256 remainingBalance = debtAmount - repaymentAmount;
+            debtToken.transfer(i_walletAddress, remainingBalance);
         }
     }
 
@@ -172,13 +262,8 @@ contract LiquidateUser is IFlashLoanSimpleReceiver {
         return stableDebt + variableDebt;
     }
 
-    function executeOperation(address asset, uint256 amount, uint256 premium, address initiator, bytes calldata params)
-        external
-        returns (bool)
-    {}
-
     function ADDRESSES_PROVIDER() external view returns (IPoolAddressesProvider) {
-        return IPoolAddressesProvider(i_aavePoolAddressProvider);
+        return IPoolAddressesProvider(i_aavePoolAddressProviderAddress);
     }
 
     function POOL() external view returns (IPool) {
