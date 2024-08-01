@@ -67,13 +67,13 @@ contract HelperConfig is Script {
 
         vm.startBroadcast();
         PoolAddressesProvider provider = new PoolAddressesProvider(marketId, msg.sender);
+        // TODO - make own Mock Pool contract
         MockPoolInherited mockPool = new MockPoolInherited(provider);
         MockPoolDataProvider mockPoolDataProvider = new MockPoolDataProvider();
         MockSwapRouter mockSwapRouter = new MockSwapRouter();
         PriceOracle priceOracle = new PriceOracle();
         vm.stopBroadcast();
 
-        // TODO - make MockSwapRouter
         return NetworkConfig({
             poolAddress: address(mockPool),
             dataProviderAddress: address(mockPoolDataProvider),
