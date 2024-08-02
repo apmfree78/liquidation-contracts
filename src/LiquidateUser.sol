@@ -31,6 +31,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
     uint256 private constant PROFIT_THRESHOLD = 50e18;
     uint256 private constant STANDARD_SCALE_FACTOR = 1e18;
     uint256 private constant BPS_FACTOR = 1e4;
+    uint256 private constant CLOSE_FACTOR_HF_THRESHOLD = 95e16;
 
     address private immutable i_aavePoolAddress;
     address private immutable i_aaveDataProviderAddress;
