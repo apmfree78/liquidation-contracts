@@ -56,6 +56,14 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         i_walletAddress = walletAddress;
     }
 
+    event LiquidateAccount(
+        address indexed liquidator,
+        address indexed beneficiary,
+        address indexed collateralToken,
+        uint256 profit,
+        address user
+    );
+
     function findAndLiquidateAccount(User[] calldata users) external noReentrancy {
         uint256 userCount = users.length;
         IPool aavePool = IPool(i_aavePoolAddress);
@@ -92,13 +100,19 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
             aavePool.flashLoanSimple(
                 address(this), topProfitAccount.user.debtToken, topProfitAccount.debtToCover, params, 0
             );
+            emit LiquidateAccount(
+                address(this),
+                i_walletAddress,
+                topProfitAccount.user.collateralToken,
+                maxProfit,
+                topProfitAccount.user.id
+            );
         }
     }
 
     // this function gets called as callback when aavePool.flashLoanSimple(..) is run
     function executeOperation(address asset, uint256 amount, uint256 premium, address, bytes calldata params)
         external
-        noReentrancy
         returns (bool)
     {
         (address collateralTokenAddress, address userId) = abi.decode(params, (address, address));

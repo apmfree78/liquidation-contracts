@@ -14,6 +14,8 @@ contract MockPool {
     error UserDoesNotOwnToken();
     error UserDoesNotExist();
     error HealthFactorNotQualifiedForLiquidation();
+    error InsufficienFundsToPayLoanPlusPremium();
+    error LoanCallbackFailed();
 
     struct Token {
         address tokenAddress;
@@ -42,6 +44,30 @@ contract MockPool {
 
     mapping(address => UserData) Users;
 
+    event Supply(
+        address indexed reserve, address user, address indexed onBehalfOf, uint256 amount, uint16 indexed referralCode
+    );
+    event Borrow(
+        address indexed reserve, address user, address indexed onBehalfOf, uint256 amount, uint16 indexed referralCode
+    );
+    event FlashLoan(
+        address indexed target,
+        address initiator,
+        address indexed asset,
+        uint256 amount,
+        uint256 premium,
+        uint16 indexed referralCode
+    );
+    event LiquidationCall(
+        address indexed collateralAsset,
+        address indexed debtAsset,
+        address indexed user,
+        uint256 debtToCover,
+        uint256 liquidatedCollateralAmount,
+        address liquidator,
+        bool receiveAToken
+    );
+
     constructor(address priceOracleAddress) {
         i_priceOracle = priceOracleAddress;
     }
@@ -69,6 +95,7 @@ contract MockPool {
         } else {
             user.tokens[uint256(tokenIndex)].aTokenBalance += amount;
         }
+        emit Supply(asset, onBehalfOf, onBehalfOf, amount, referralCode);
     }
 
     function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf)
@@ -93,6 +120,7 @@ contract MockPool {
         } else {
             user.tokens[uint256(tokenIndex)].debt += amount;
         }
+        emit Borrow(asset, onBehalfOf, onBehalfOf, amount, referralCode);
     }
 
     function findTokenIndex(UserData storage user, address asset) internal view returns (int256) {
@@ -104,7 +132,6 @@ contract MockPool {
         return -1; // Return -1 if not found
     }
 
-    // TODO - complete below function
     function flashLoanSimple(
         address receiverAddress,
         address asset,
@@ -116,7 +143,17 @@ contract MockPool {
 
         IERC20(asset).transfer(receiverAddress, amount);
 
-        IFlashLoanReceiver(receiverAddress).executeOperation(asset, amount, premium, receiverAddress, params);
+        bool success =
+            IFlashLoanReceiver(receiverAddress).executeOperation(asset, amount, premium, receiverAddress, params);
+
+        if (!success) revert LoanCallbackFailed();
+
+        // make sure reciever has balance to pay loan
+        if (IERC20(asset).balanceOf(receiverAddress) < amount + premium) {
+            revert InsufficienFundsToPayLoanPlusPremium();
+        }
+        IERC20(asset).transferFrom(receiverAddress, address(this), amount + premium);
+        emit FlashLoan(receiverAddress, msg.sender, asset, amount, premium, referralCode);
     }
 
     function liquidationCall(
@@ -143,12 +180,23 @@ contract MockPool {
             uint256 debtPrice = PriceOracle(i_priceOracle).getAssetPrice(debtAsset);
             uint256 collateralPrice = PriceOracle(i_priceOracle).getAssetPrice(collateralAsset);
 
-            uint256 maxAmountOfCollateralToLiquidate = debtPrice * debtToCover / collateralPrice
-                * _user.tokens[uint256(collateralTokenIndex)].liquidationBonus / BPS_FACTOR;
+            uint256 _amount = (debtPrice * debtToCover) / collateralPrice;
+
+            uint256 maxAmountOfCollateralToLiquidate =
+                (_amount * _user.tokens[uint256(collateralTokenIndex)].liquidationBonus) / BPS_FACTOR;
 
             // transfer funds
             IERC20(debtAsset).transferFrom(_user.id, address(this), debtToCover);
             IERC20(collateralAsset).transfer(_user.id, maxAmountOfCollateralToLiquidate);
+            emit LiquidationCall(
+                collateralAsset,
+                debtAsset,
+                user,
+                debtToCover,
+                maxAmountOfCollateralToLiquidate,
+                msg.sender,
+                receiveAToken
+            );
         } else {
             revert HealthFactorNotQualifiedForLiquidation();
         }
@@ -170,13 +218,13 @@ contract MockPool {
             totalDebt += user.tokens[i].debt * price / decimalFactor;
 
             if (user.tokens[i].useAsCollateralEnabled) {
-                collateralTimesLiquidationFactor += user.tokens[i].aTokenBalance * price / decimalFactor
-                    * user.tokens[i].liquidationThreshold / BPS_FACTOR;
+                uint256 _amount = (user.tokens[i].aTokenBalance * price) / decimalFactor;
+                collateralTimesLiquidationFactor += (_amount * user.tokens[i].liquidationThreshold) / BPS_FACTOR;
             }
         }
 
         if (totalDebt > 0) {
-            return collateralTimesLiquidationFactor * STANDARD_SCALE / totalDebt;
+            return (collateralTimesLiquidationFactor * STANDARD_SCALE) / totalDebt;
         } else {
             return 0;
         }
