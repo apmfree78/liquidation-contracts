@@ -7,7 +7,7 @@
 pragma solidity ^0.8.13;
 
 import {Script, console} from "lib/forge-std/src/Script.sol";
-import "lib/aave-v3-core/contracts/mocks/helpers/MockPool.sol";
+import "test/mocks/MockPool.sol";
 import "lib/aave-v3-core/contracts/mocks/oracle/PriceOracle.sol";
 import "test/mocks/MockPoolDataProvider.sol";
 import "test/mocks/MockSwapRouter.sol";
@@ -67,11 +67,10 @@ contract HelperConfig is Script {
 
         vm.startBroadcast();
         PoolAddressesProvider provider = new PoolAddressesProvider(marketId, msg.sender);
-        // TODO - make own Mock Pool contract
-        MockPoolInherited mockPool = new MockPoolInherited(provider);
         MockPoolDataProvider mockPoolDataProvider = new MockPoolDataProvider();
         MockSwapRouter mockSwapRouter = new MockSwapRouter();
         PriceOracle priceOracle = new PriceOracle();
+        MockPool mockPool = new MockPool(address(priceOracle));
         vm.stopBroadcast();
 
         return NetworkConfig({

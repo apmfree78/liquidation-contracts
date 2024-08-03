@@ -229,4 +229,23 @@ contract MockPool {
             return 0;
         }
     }
+
+    // Function returning user account data
+    function getUserAccountData(address userId)
+        external
+        view
+        returns (
+            uint256 totalCollateralETH,
+            uint256 totalDebtETH,
+            uint256 availableBorrowsETH,
+            uint256 currentLiquidationThreshold,
+            uint256 ltv,
+            uint256 healthFactor
+        )
+    {
+        UserData memory user = Users[userId];
+        if (!user.exists) revert UserDoesNotExist();
+
+        return (0, 0, 0, 0, 0, getHealthFactor(userId));
+    }
 }

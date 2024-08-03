@@ -73,16 +73,18 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         // cycle through each user account to see if
         // if health factor is in right range
         // AND profit after liquidation is sufficient hieght
+        console.log("looping through users");
         for (uint256 i = 0; i < userCount; i++) {
             address id = users[i].id;
 
             // get health factor
-            (,,, uint256 liquidationThreshold,, uint256 healthFactor) = aavePool.getUserAccountData(id);
+            console.log("getting user account");
+            (,,,,, uint256 healthFactor) = aavePool.getUserAccountData(id);
             console.log("health factor =>", healthFactor);
 
             if (healthFactor < LIQUIDATION_THRESHOLD && healthFactor > MIN_HEALTH_SCORE_THRESHOLD) {
                 // checkout profitability
-                (uint256 profit, uint256 debtToCover) = getUserDebtToCoverAndProfit(users[i], liquidationThreshold);
+                (uint256 profit, uint256 debtToCover) = getUserDebtToCoverAndProfit(users[i], healthFactor);
 
                 if (profit > PROFIT_THRESHOLD && profit > maxProfit) {
                     maxProfit = profit;
@@ -210,7 +212,8 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         if (debtBalance < repaymentAmount) revert InsufficientBalanceToPayLoan();
     }
 
-    function getUserDebtToCoverAndProfit(User calldata user, uint256 liquidationThreshold)
+    // TODO - THIS IS WRONG LIQUIDATION THRESHOLD -- FIX
+    function getUserDebtToCoverAndProfit(User calldata user, uint256 healthFactor)
         private
         view
         returns (uint256, uint256)
@@ -223,6 +226,9 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         // get collateral amount, token price, and liquidation values
         (uint256 aTokenBalance,,,,,,,, bool useAsCollateral) =
             poolDataProvider.getUserReserveData(user.collateralToken, user.id);
+
+        uint256 liquidationThreshold = 5e17; // 0.5
+        if (healthFactor < CLOSE_FACTOR_HF_THRESHOLD) liquidationThreshold = 1e18;
 
         uint256 liquidationBonus = getAaveLiquidationBonus(user.collateralToken);
         uint256 collateralPrice = priceOracle.getAssetPrice(user.collateralToken);

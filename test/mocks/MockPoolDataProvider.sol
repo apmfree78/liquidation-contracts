@@ -1,66 +1,150 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-// Define the interface
-interface IPoolDataProvider {
-    function getReserveData(address asset) external view returns (uint256 liquidityRate);
-    function getUserAccountData(address user)
-        external
-        view
-        returns (
-            uint256 totalCollateralETH,
-            uint256 totalDebtETH,
-            uint256 availableBorrowsETH,
-            uint256 currentLiquidationThreshold,
-            uint256 ltv,
-            uint256 healthFactor
-        );
-}
+import {Test, console} from "lib/forge-std/src/Test.sol";
 
 // Mock implementation of the interface
-contract MockPoolDataProvider is IPoolDataProvider {
-    mapping(address => uint256) public liquidityRates;
-    mapping(address => uint256[6]) public userAccountData;
-
-    // Function to set liquidity rates for different assets
-    function setLiquidityRate(address asset, uint256 rate) public {
-        liquidityRates[asset] = rate;
+contract MockPoolDataProvider {
+    struct ReserveData {
+        uint256 currentATokenBalance;
+        uint256 currentStableDebt;
+        uint256 currentVariableDebt;
+        uint256 principalStableDebt;
+        uint256 scaledVariableDebt;
+        uint256 stableBorrowRate;
+        uint256 liquidityRate;
+        uint40 stableRateLastUpdated;
+        bool usageAsCollateralEnabled;
     }
 
-    // Function returning liquidity rate for a given asset
-    function getReserveData(address asset) external view override returns (uint256 liquidityRate) {
-        return liquidityRates[asset];
+    struct ReserveConfiguration {
+        uint256 decimals;
+        uint256 ltv;
+        uint256 liquidationThreshold;
+        uint256 liquidationBonus;
+        uint256 reserveFactor;
+        bool usageAsCollateralEnabled;
+        bool borrowingEnabled;
+        bool stableBorrowRateEnabled;
+        bool isActive;
+        bool isFrozen;
     }
+
+    mapping(address => mapping(address => ReserveData)) public reserveData;
+    mapping(address => ReserveConfiguration) public reserveConfiguration;
 
     // Function to set user account data
-    function setUserAccountData(
+    function setUserReserveData(
         address user,
-        uint256 totalCollateralETH,
-        uint256 totalDebtETH,
-        uint256 availableBorrowsETH,
-        uint256 currentLiquidationThreshold,
-        uint256 ltv,
-        uint256 healthFactor
+        address asset,
+        uint256 currentATokenBalance,
+        uint256 currentStableDebt,
+        uint256 currentVariableDebt,
+        uint256 principalStableDebt,
+        uint256 scaledVariableDebt,
+        uint256 stableBorrowRate,
+        uint256 liquidityRate,
+        uint40 stableRateLastUpdated,
+        bool usageAsCollateralEnabled
     ) public {
-        userAccountData[user] =
-            [totalCollateralETH, totalDebtETH, availableBorrowsETH, currentLiquidationThreshold, ltv, healthFactor];
+        reserveData[user][asset] = ReserveData({
+            currentATokenBalance: currentATokenBalance,
+            currentStableDebt: currentStableDebt,
+            currentVariableDebt: currentVariableDebt,
+            principalStableDebt: principalStableDebt,
+            scaledVariableDebt: scaledVariableDebt,
+            stableBorrowRate: stableBorrowRate,
+            liquidityRate: liquidityRate,
+            stableRateLastUpdated: stableRateLastUpdated,
+            usageAsCollateralEnabled: usageAsCollateralEnabled
+        });
     }
 
-    // Function returning user account data
-    function getUserAccountData(address user)
+    function getUserReserveData(address asset, address user)
         external
         view
-        override
         returns (
-            uint256 totalCollateralETH,
-            uint256 totalDebtETH,
-            uint256 availableBorrowsETH,
-            uint256 currentLiquidationThreshold,
-            uint256 ltv,
-            uint256 healthFactor
+            uint256 currentATokenBalance,
+            uint256 currentStableDebt,
+            uint256 currentVariableDebt,
+            uint256 principalStableDebt,
+            uint256 scaledVariableDebt,
+            uint256 stableBorrowRate,
+            uint256 liquidityRate,
+            uint40 stableRateLastUpdated,
+            bool usageAsCollateralEnabled
         )
     {
-        uint256[6] memory data = userAccountData[user];
-        return (data[0], data[1], data[2], data[3], data[4], data[5]);
+        ReserveData memory data = reserveData[user][asset];
+        return (
+            data.currentATokenBalance,
+            data.currentStableDebt,
+            data.currentVariableDebt,
+            data.principalStableDebt,
+            data.scaledVariableDebt,
+            data.stableBorrowRate,
+            data.liquidityRate,
+            data.stableRateLastUpdated,
+            data.usageAsCollateralEnabled
+        );
+    }
+
+    function getReserveConfigurationData(address asset)
+        external
+        view
+        returns (
+            uint256 decimals,
+            uint256 ltv,
+            uint256 liquidationThreshold,
+            uint256 liquidationBonus,
+            uint256 reserveFactor,
+            bool usageAsCollateralEnabled,
+            bool borrowingEnabled,
+            bool stableBorrowRateEnabled,
+            bool isActive,
+            bool isFrozen
+        )
+    {
+        ReserveConfiguration memory data = reserveConfiguration[asset];
+
+        return (
+            data.decimals,
+            data.ltv,
+            data.liquidationThreshold,
+            data.liquidationBonus,
+            data.reserveFactor,
+            data.usageAsCollateralEnabled,
+            data.borrowingEnabled,
+            data.stableBorrowRateEnabled,
+            data.isActive,
+            data.isFrozen
+        );
+    }
+
+    function setReserveConfigurationData(
+        address asset,
+        uint256 decimals,
+        uint256 ltv,
+        uint256 liquidationThreshold,
+        uint256 liquidationBonus,
+        uint256 reserveFactor,
+        bool usageAsCollateralEnabled,
+        bool borrowingEnabled,
+        bool stableBorrowRateEnabled,
+        bool isActive,
+        bool isFrozen
+    ) external {
+        reserveConfiguration[asset] = ReserveConfiguration({
+            decimals: decimals,
+            ltv: ltv,
+            liquidationThreshold: liquidationThreshold,
+            liquidationBonus: liquidationBonus,
+            reserveFactor: reserveFactor,
+            usageAsCollateralEnabled: usageAsCollateralEnabled,
+            borrowingEnabled: borrowingEnabled,
+            stableBorrowRateEnabled: stableBorrowRateEnabled,
+            isActive: isActive,
+            isFrozen: isFrozen
+        });
     }
 }
