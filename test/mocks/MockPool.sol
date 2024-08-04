@@ -32,8 +32,8 @@ contract MockPool {
         Token[] tokens;
     }
 
-    uint256 private constant LIQUIDATION_THRESHOLD = 7000; // set fixed 70% liquidation threshold for testing
-    uint256 private constant LIQUIDATION_BONUS = 11000; // set fixed 10% liquidation bonus for testing
+    uint256 public constant LIQUIDATION_THRESHOLD = 7000; // set fixed 70% liquidation threshold for testing
+    uint256 public constant LIQUIDATION_BONUS = 10500; // set fixed 10% liquidation bonus for testing
     uint256 private constant BPS_FACTOR = 1e4; // set fixed 10% liquidation bonus for testing
     uint256 private constant FLASHLOAN_FEE = 5; // 0.05%
     uint256 private constant STANDARD_SCALE = 1 ether;

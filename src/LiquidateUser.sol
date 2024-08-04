@@ -136,9 +136,10 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         console.log("debt token balanc before swap => ", debtToken.balanceOf(address(this)));
 
         // TODO - UPDATE THIS PLEASE!!!
-        if (collateralTokenAddress != asset) {}
-        console.log("swapping collateral token debt token to pay off debt");
-        swapCollateralForDebtTokenToRepayLoan(collateralTokenAddress, asset, amount + premium);
+        if (collateralTokenAddress != asset) {
+            console.log("swapping collateral token debt token to pay off debt");
+            swapCollateralForDebtTokenToRepayLoan(collateralTokenAddress, asset, amount + premium);
+        }
 
         console.log("collateral token balance AFTER swap => ", collateralToken.balanceOf(address(this)));
         console.log("transfering remaining collateral token to liquidator wallet");
@@ -149,7 +150,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
     function swapCollateralForDebtTokenToRepayLoan(
         address collateralTokenAddress,
         address debtTokenAddress,
-        uint256 debtAmount
+        uint256 loanRepaymentAmount
     ) private {
         IERC20 debtToken = IERC20(debtTokenAddress);
         IERC20 collateralToken = IERC20(collateralTokenAddress);
@@ -159,10 +160,10 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         if (collateralToken.balanceOf(address(this)) == 0) revert NoCollateralToken();
 
         // need amount + premium of debtToken to pay off loan, use uniswap to get this amount
-        uint256 loanRepaymentAmount = debtAmount;
         uint256 amountInMax = collateralToken.balanceOf(address(this));
         bytes memory path = abi.encodePacked(collateralTokenAddress, uint24(3000), debtTokenAddress);
 
+        // TODO - CHECK the values you are submitting , should
         ISwapRouter.ExactOutputParams memory swapParams = ISwapRouter.ExactOutputParams({
             path: path,
             recipient: address(this),
@@ -215,6 +216,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         if (collateralTokenAddress != debtTokenAddress) {
             // collateralToken.approve(address(this), collateralAmount);
             collateralToken.transfer(i_walletAddress, collateralAmount);
+            console.log("profit taken of amount (collateral Token)", collateralAmount);
         }
 
         if (debtAmount > repaymentAmount) {
@@ -226,7 +228,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
             uint256 debtBalance = debtToken.balanceOf(address(this));
             if (debtBalance < repaymentAmount) revert InsufficientBalanceToPayLoan();
 
-            console.log("profit taking successful");
+            console.log("profit taken of amount (outstading debt token)", remainingBalance);
         }
     }
 
@@ -248,21 +250,19 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         if (healthFactor < CLOSE_FACTOR_HF_THRESHOLD) liquidationThreshold = 1e18;
 
         uint256 liquidationBonus = getAaveLiquidationBonus(user.collateralToken);
-        uint256 collateralPrice = priceOracle.getAssetPrice(user.collateralToken);
+        uint256 debtPrice = priceOracle.getAssetPrice(user.debtToken);
 
         // uint256 totalDebt = stableDebt + variableDebt;
         uint256 debtDecimalFactor = getTokenDecimalFactorFromAave(user.debtToken);
 
-        // console.log("debt token => ", user.debtToken);
-        // console.log("collateral token => ", user.collateralToken);
-        // console.log("totaldebt =>", totalDebt);
-        // console.log("aTokenBalance =>", aTokenBalance);
-        // console.log("user as Collateral =>", useAsCollateral);
-        // console.log("liquidationThreshold =>", liquidationThreshold);
-        // console.log("liquidationBonus =>", liquidationBonus);
-        // console.log("collateral Price =>", collateralPrice);
-        // console.log("debt debtDecimalFactor =>", debtDecimalFactor);
-        // console.log("debt collateralDecimalFactor =>", collateralDecimalFactor);
+        console.log("debt token => ", user.debtToken);
+        console.log("collateral token => ", user.collateralToken);
+        console.log("totaldebt =>", totalDebt);
+        console.log("user as Collateral =>", useAsCollateral);
+        console.log("liquidationThreshold =>", liquidationThreshold);
+        console.log("liquidationBonus =>", liquidationBonus);
+        console.log("collateral Price =>", debtPrice);
+        console.log("debt debtDecimalFactor =>", debtDecimalFactor);
 
         /**
          * CALCULATE DEBT TO COVER - THIS WILL DETERMINE HOW MUCH COLLATERAL TO BORROW FROM FLASH FLOAN
@@ -270,11 +270,6 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
          */
         uint256 debtToCover = totalDebt * liquidationThreshold;
 
-        debtToCover = debtToCover / debtDecimalFactor;
-
-        debtToCover = debtToCover * collateralPrice;
-
-        // final scaled debtToCover value
         debtToCover = debtToCover / STANDARD_SCALE_FACTOR;
 
         /**
@@ -282,7 +277,9 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
          *
          */
         if (liquidationBonus > 0 && useAsCollateral) {
-            uint256 profitUsd = debtToCover * liquidationBonus;
+            uint256 profitUsd = (debtToCover * debtPrice) / debtDecimalFactor;
+
+            profitUsd = profitUsd * liquidationBonus;
 
             profitUsd = profitUsd * (liquidationBonus - BPS_FACTOR);
 

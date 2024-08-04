@@ -22,10 +22,11 @@ contract LiquidateUserTest is Test {
     }
 
     uint256 private constant LIQUIDATION_THRESHOLD = 7000; // set fixed 70% liquidation threshold for testing
-    uint256 private constant LIQUIDATION_BONUS = 11000; // set fixed 10% liquidation bonus for testing
+    uint256 private constant LIQUIDATION_BONUS = 10500; // set fixed 10% liquidation bonus for testing
     uint256 public constant STARTING_USER_BALANCE = 10000 ether;
     uint256 public constant STARTING_TOKEN_AMOUNT = 10000 ether;
     uint256 public constant SUPPLY = 10000e6;
+    uint256 public constant SUPPLY_WETH = 333e16; //3.33 ETH ~ $10k
     uint256 public constant BORROW = 10000e6;
 
     address public poolAddress;
@@ -36,8 +37,8 @@ contract LiquidateUserTest is Test {
     address public walletAddress;
 
     LiquidateUser liquidateUser;
-    MintableERC20 public collateral_token;
-    MintableERC20 public extra_token;
+    MintableERC20 public usdt_token;
+    MintableERC20 public dai_token;
     WETH9Mocked public weth;
     address public USER = makeAddr("user");
 
@@ -54,80 +55,94 @@ contract LiquidateUserTest is Test {
         vm.deal(USER, STARTING_USER_BALANCE);
 
         // STEP MOCK TOKENS
-        collateral_token = new MintableERC20("Tether USD", "USDT", 6);
+        usdt_token = new MintableERC20("Tether USD", "USDT", 6);
         MockPoolDataProvider(dataProviderAddress).setReserveConfigurationData(
-            address(collateral_token), 6, 0, LIQUIDATION_THRESHOLD, LIQUIDATION_BONUS, 0, true, true, true, true, false
+            address(usdt_token), 6, 0, LIQUIDATION_THRESHOLD, LIQUIDATION_BONUS, 0, true, true, true, true, false
         );
-        PriceOracle(priceOracleAddress).setAssetPrice(address(collateral_token), 1e18);
-        MockSwapRouter(swapRouterAddress).setTokenPrice(address(collateral_token), 1e18);
-        console.log("collateral token => ", address(collateral_token));
+        PriceOracle(priceOracleAddress).setAssetPrice(address(usdt_token), 1e18);
+        MockSwapRouter(swapRouterAddress).setTokenData(address(usdt_token), 1e18, 6);
+        console.log("usdt token => ", address(usdt_token));
 
-        extra_token = new MintableERC20("Dai Stablecoin", "Dai", 18);
+        dai_token = new MintableERC20("Dai Stablecoin", "Dai", 18);
         MockPoolDataProvider(dataProviderAddress).setReserveConfigurationData(
-            address(extra_token), 18, 0, LIQUIDATION_THRESHOLD, LIQUIDATION_BONUS, 0, true, true, true, true, false
+            address(dai_token), 18, 0, LIQUIDATION_THRESHOLD, LIQUIDATION_BONUS, 0, true, true, true, true, false
         );
-        PriceOracle(priceOracleAddress).setAssetPrice(address(extra_token), 1e18);
-        MockSwapRouter(swapRouterAddress).setTokenPrice(address(extra_token), 1e18);
-        console.log("extra token => ", address(extra_token));
+        PriceOracle(priceOracleAddress).setAssetPrice(address(dai_token), 1e18);
+        MockSwapRouter(swapRouterAddress).setTokenData(address(dai_token), 1e18, 18);
+        console.log("dai token => ", address(dai_token));
 
         weth = new WETH9Mocked();
         MockPoolDataProvider(dataProviderAddress).setReserveConfigurationData(
             address(weth), 18, 0, LIQUIDATION_THRESHOLD, LIQUIDATION_BONUS, 0, true, true, true, true, false
         );
         PriceOracle(priceOracleAddress).setAssetPrice(address(weth), 3000e18);
-        MockSwapRouter(swapRouterAddress).setTokenPrice(address(weth), 3000e18);
+        MockSwapRouter(swapRouterAddress).setTokenData(address(weth), 3000e18, 18);
         console.log("weth token => ", address(weth));
 
         // PROVIDER USERS WITH TOKENS
         vm.startPrank(USER);
-        collateral_token.mint(STARTING_TOKEN_AMOUNT);
-        collateral_token.approve(address(poolAddress), SUPPLY);
+        usdt_token.mint(STARTING_TOKEN_AMOUNT);
+        usdt_token.approve(address(poolAddress), SUPPLY);
 
-        extra_token.mint(STARTING_TOKEN_AMOUNT);
-        extra_token.approve(address(poolAddress), SUPPLY);
+        dai_token.mint(STARTING_TOKEN_AMOUNT);
+        dai_token.approve(address(poolAddress), SUPPLY);
 
         weth.mint(STARTING_USER_BALANCE);
         weth.approve(address(poolAddress), SUPPLY);
         vm.stopPrank();
 
-        // ADD COLLATERAL AND BORROW FROM POOL CONTRACT
-        MockPool(poolAddress).supply(address(collateral_token), SUPPLY, USER, 0);
-        MockPool(poolAddress).borrow(address(collateral_token), BORROW, 1, 0, USER);
-
-        // MAKE SURE DATA PROVIDER IS SETUP WITH USER
-        MockPoolDataProvider(dataProviderAddress).setUserReserveData(
-            USER, address(collateral_token), SUPPLY, BORROW, 0, 0, 0, 0, 0, 0, true
-        );
-        MockPoolDataProvider(dataProviderAddress).setUserReserveData(
-            USER, address(extra_token), 0, 0, 0, 0, 0, 0, 0, 0, true
-        );
-        MockPoolDataProvider(dataProviderAddress).setUserReserveData(USER, address(weth), 0, 0, 0, 0, 0, 0, 0, 0, true);
-
         // fund mock contracts
         // tokesn for pool contract
-        collateral_token.mint(poolAddress, 100000 ether);
+        usdt_token.mint(poolAddress, 100000 ether);
         weth.mint(poolAddress, 100000 ether);
-        extra_token.mint(poolAddress, 100000 ether);
+        dai_token.mint(poolAddress, 100000 ether);
 
         // tokens for swap router
-        collateral_token.mint(swapRouterAddress, 100000 ether);
+        usdt_token.mint(swapRouterAddress, 100000 ether);
         weth.mint(swapRouterAddress, 100000 ether);
-        extra_token.mint(swapRouterAddress, 100000 ether);
+        dai_token.mint(swapRouterAddress, 100000 ether);
     }
 
-    function testContractIsBeingCallSuccessfully() public {
+    function testwithSameDebtAndCollateralToken() public {
+        LiquidateUser.User[] memory user = setupUser(address(usdt_token), address(usdt_token), SUPPLY, BORROW);
         // creat aave user account
         vm.startPrank(USER);
 
-        LiquidateUser.User[] memory user = new LiquidateUser.User[](1);
-
-        user[0] = LiquidateUser.User({
-            id: USER,
-            debtToken: address(collateral_token),
-            collateralToken: address(collateral_token)
-        });
+        // LiquidateUser.User[] memory user = new LiquidateUser.User[](1);
+        //
+        // user[0] = LiquidateUser.User({id: USER, debtToken: address(usdt_token), collateralToken: address(usdt_token)});
 
         liquidateUser.findAndLiquidateAccount(user);
         vm.stopPrank();
+    }
+
+    function testwithDifferntDebtAndCollateralToken() public {
+        LiquidateUser.User[] memory user = setupUser(address(weth), address(usdt_token), SUPPLY_WETH, BORROW);
+        // creat aave user account
+        vm.startPrank(USER);
+        liquidateUser.findAndLiquidateAccount(user);
+        vm.stopPrank();
+    }
+
+    function setupUser(address supplyToken, address borrowToken, uint256 supplyAmount, uint256 borrowAmount)
+        public
+        returns (LiquidateUser.User[] memory)
+    {
+        // ADD COLLATERAL AND BORROW FROM POOL CONTRACT
+        MockPool(poolAddress).supply(supplyToken, supplyAmount, USER, 0);
+        MockPool(poolAddress).borrow(borrowToken, borrowAmount, 1, 0, USER);
+
+        // DATA PROVIDER IS SETUP WITH USER
+        MockPoolDataProvider(dataProviderAddress).setUserReserveData(
+            USER, supplyToken, supplyAmount, 0, 0, 0, 0, 0, 0, 0, true
+        );
+        MockPoolDataProvider(dataProviderAddress).setUserReserveData(
+            USER, borrowToken, 0, borrowAmount, 0, 0, 0, 0, 0, 0, true
+        );
+        LiquidateUser.User[] memory user = new LiquidateUser.User[](1);
+
+        user[0] = LiquidateUser.User({id: USER, debtToken: address(borrowToken), collateralToken: address(supplyToken)});
+
+        return user;
     }
 }

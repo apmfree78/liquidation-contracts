@@ -9,7 +9,7 @@ contract MockSwapRouter {
     uint24 public constant FEE_DENOMINATOR = 1e6; // To represent fee in parts per million for precision
     uint24 public constant FEE_PERCENTAGE = 3000; // Fee percentage in basis points, example: 0.3%
 
-    mapping(address => uint256) tokenPrice;
+    mapping(address => uint256[2]) tokenData; // price , decimals
 
     function exactOutput(ISwapRouter.ExactOutputParams calldata params) external returns (uint256 amountIn) {
         // Decode path to find tokenIn and tokenOut
@@ -22,8 +22,12 @@ contract MockSwapRouter {
         // Calculate the fee to apply on the amount out
         uint256 feeAmount = (params.amountOut * FEE_PERCENTAGE) / FEE_DENOMINATOR;
         uint256 amountOutPlusFee = params.amountOut + feeAmount;
+        (uint256 inTokenPrice, uint256 inTokenDecimals) = getTokenData(tokenIn);
+        (uint256 outTokenPrice, uint256 outTokenDecimals) = getTokenData(tokenOut);
 
-        uint256 amountIn = (amountOutPlusFee * tokenPrice[tokenOut]) / tokenPrice[tokenIn];
+        // TODO - CHECK scaling of value , looks off
+        uint256 amountIn = (amountOutPlusFee * outTokenPrice) / inTokenPrice;
+        amountIn = amountIn * (10 ** outTokenDecimals) / (10 ** inTokenDecimals);
 
         // Transfer the maximum amount allowed from the caller to this contract
         IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
@@ -53,11 +57,12 @@ contract MockSwapRouter {
         }
     }
 
-    function getTokenPrice(address token) public view returns (uint256) {
-        return tokenPrice[token];
+    function getTokenData(address token) public view returns (uint256, uint256) {
+        return (tokenData[token][0], tokenData[token][1]);
     }
 
-    function setTokenPrice(address token, uint256 price) public {
-        tokenPrice[token] = price;
+    function setTokenData(address token, uint256 price, uint256 decimals) public {
+        tokenData[token][0] = price;
+        tokenData[token][1] = decimals;
     }
 }
