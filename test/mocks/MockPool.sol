@@ -182,12 +182,13 @@ contract MockPool {
 
             uint256 _amount = (debtPrice * debtToCover) / collateralPrice;
 
+            // TODO - convert to price in ETH?
             uint256 maxAmountOfCollateralToLiquidate =
                 (_amount * _user.tokens[uint256(collateralTokenIndex)].liquidationBonus) / BPS_FACTOR;
 
             // transfer funds
-            IERC20(debtAsset).transferFrom(_user.id, address(this), debtToCover);
-            IERC20(collateralAsset).transfer(_user.id, maxAmountOfCollateralToLiquidate);
+            IERC20(debtAsset).transferFrom(msg.sender, address(this), debtToCover);
+            IERC20(collateralAsset).transfer(msg.sender, maxAmountOfCollateralToLiquidate);
             emit LiquidationCall(
                 collateralAsset,
                 debtAsset,

@@ -22,10 +22,10 @@ contract LiquidateUserTest is Test {
 
     uint256 private constant LIQUIDATION_THRESHOLD = 7000; // set fixed 70% liquidation threshold for testing
     uint256 private constant LIQUIDATION_BONUS = 11000; // set fixed 10% liquidation bonus for testing
-    uint256 public constant STARTING_USER_BALANCE = 10 ether;
-    uint256 public constant STARTING_TOKEN_AMOUNT = 100 ether;
-    uint256 public constant SUPPLY = 0.1 ether;
-    uint256 public constant BORROW = 0.1 ether;
+    uint256 public constant STARTING_USER_BALANCE = 10000 ether;
+    uint256 public constant STARTING_TOKEN_AMOUNT = 10000 ether;
+    uint256 public constant SUPPLY = 10000e6;
+    uint256 public constant BORROW = 10000e6;
 
     address public poolAddress;
     address public dataProviderAddress;
@@ -57,19 +57,22 @@ contract LiquidateUserTest is Test {
         MockPoolDataProvider(dataProviderAddress).setReserveConfigurationData(
             address(collateral_token), 6, 0, LIQUIDATION_THRESHOLD, LIQUIDATION_BONUS, 0, true, true, true, true, false
         );
-        PriceOracle(priceOracleAddress).setAssetPrice(address(collateral_token), 1e6);
+        PriceOracle(priceOracleAddress).setAssetPrice(address(collateral_token), 1e18);
+        console.log("collateral token => ", address(collateral_token));
 
         extra_token = new MintableERC20("Dai Stablecoin", "Dai", 18);
         MockPoolDataProvider(dataProviderAddress).setReserveConfigurationData(
             address(extra_token), 18, 0, LIQUIDATION_THRESHOLD, LIQUIDATION_BONUS, 0, true, true, true, true, false
         );
         PriceOracle(priceOracleAddress).setAssetPrice(address(extra_token), 1e18);
+        console.log("extra token => ", address(extra_token));
 
         weth = new WETH9Mocked();
         MockPoolDataProvider(dataProviderAddress).setReserveConfigurationData(
             address(weth), 18, 0, LIQUIDATION_THRESHOLD, LIQUIDATION_BONUS, 0, true, true, true, true, false
         );
         PriceOracle(priceOracleAddress).setAssetPrice(address(weth), 3000e18);
+        console.log("weth token => ", address(weth));
 
         // PROVIDER USERS WITH TOKENS
         vm.startPrank(USER);
@@ -98,25 +101,29 @@ contract LiquidateUserTest is Test {
 
         // fund mock contracts
         // tokesn for pool contract
-        collateral_token.mint(poolAddress, 1000 ether);
-        weth.mint(poolAddress, 1000 ether);
-        extra_token.mint(poolAddress, 1000 ether);
+        collateral_token.mint(poolAddress, 100000 ether);
+        weth.mint(poolAddress, 100000 ether);
+        extra_token.mint(poolAddress, 100000 ether);
 
         // tokens for swap router
-        collateral_token.mint(swapRouterAddress, 1000 ether);
-        weth.mint(swapRouterAddress, 10000 ether);
-        extra_token.mint(swapRouterAddress, 1000 ether);
+        collateral_token.mint(swapRouterAddress, 100000 ether);
+        weth.mint(swapRouterAddress, 100000 ether);
+        extra_token.mint(swapRouterAddress, 100000 ether);
     }
 
     function testContractIsBeingCallSuccessfully() public {
         // creat aave user account
-        // vm.startPrank(USER);
+        vm.startPrank(USER);
 
         LiquidateUser.User[] memory user = new LiquidateUser.User[](1);
 
-        user[0] = LiquidateUser.User({id: USER, debtToken: address(weth), collateralToken: address(weth)});
+        user[0] = LiquidateUser.User({
+            id: USER,
+            debtToken: address(collateral_token),
+            collateralToken: address(collateral_token)
+        });
 
         liquidateUser.findAndLiquidateAccount(user);
-        // vm.stopPrank();
+        vm.stopPrank();
     }
 }
