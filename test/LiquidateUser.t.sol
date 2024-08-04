@@ -8,6 +8,7 @@ import {HelperConfig} from "script/HelperConfig.s.sol";
 import {MintableERC20} from "lib/aave-v3-core/contracts/mocks/tokens/MintableERC20.sol";
 import {WETH9Mocked} from "lib/aave-v3-core/contracts/mocks/tokens/WETH9Mocked.sol";
 import {MockPool} from "test/mocks/MockPool.sol";
+import {MockSwapRouter} from "test/mocks/MockSwapRouter.sol";
 import {PriceOracle} from "lib/aave-v3-core/contracts/mocks/oracle/PriceOracle.sol";
 import {MockPoolDataProvider} from "test/mocks/MockPoolDataProvider.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
@@ -58,6 +59,7 @@ contract LiquidateUserTest is Test {
             address(collateral_token), 6, 0, LIQUIDATION_THRESHOLD, LIQUIDATION_BONUS, 0, true, true, true, true, false
         );
         PriceOracle(priceOracleAddress).setAssetPrice(address(collateral_token), 1e18);
+        MockSwapRouter(swapRouterAddress).setTokenPrice(address(collateral_token), 1e18);
         console.log("collateral token => ", address(collateral_token));
 
         extra_token = new MintableERC20("Dai Stablecoin", "Dai", 18);
@@ -65,6 +67,7 @@ contract LiquidateUserTest is Test {
             address(extra_token), 18, 0, LIQUIDATION_THRESHOLD, LIQUIDATION_BONUS, 0, true, true, true, true, false
         );
         PriceOracle(priceOracleAddress).setAssetPrice(address(extra_token), 1e18);
+        MockSwapRouter(swapRouterAddress).setTokenPrice(address(extra_token), 1e18);
         console.log("extra token => ", address(extra_token));
 
         weth = new WETH9Mocked();
@@ -72,6 +75,7 @@ contract LiquidateUserTest is Test {
             address(weth), 18, 0, LIQUIDATION_THRESHOLD, LIQUIDATION_BONUS, 0, true, true, true, true, false
         );
         PriceOracle(priceOracleAddress).setAssetPrice(address(weth), 3000e18);
+        MockSwapRouter(swapRouterAddress).setTokenPrice(address(weth), 3000e18);
         console.log("weth token => ", address(weth));
 
         // PROVIDER USERS WITH TOKENS

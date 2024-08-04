@@ -131,13 +131,16 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
 
         // now that account is liquidated need to swap the collateral token recieved for
         // debt token (asset) in amount of amount + premium
+        IERC20 debtToken = IERC20(asset);
+        IERC20 collateralToken = IERC20(collateralTokenAddress);
+        console.log("debt token balanc before swap => ", debtToken.balanceOf(address(this)));
 
         // TODO - UPDATE THIS PLEASE!!!
-        if (collateralTokenAddress != asset) {
-            console.log("swapping collateral token debt token to pay off debt");
-            swapCollateralForDebtTokenToRepayLoan(collateralTokenAddress, asset, amount + premium);
-        }
+        if (collateralTokenAddress != asset) {}
+        console.log("swapping collateral token debt token to pay off debt");
+        swapCollateralForDebtTokenToRepayLoan(collateralTokenAddress, asset, amount + premium);
 
+        console.log("collateral token balance AFTER swap => ", collateralToken.balanceOf(address(this)));
         console.log("transfering remaining collateral token to liquidator wallet");
         transferProfitToWallet(collateralTokenAddress, asset, amount + premium);
         return true;
@@ -239,8 +242,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         uint256 totalDebt = getAaveTotalDebt(user.debtToken, user.id);
 
         // get collateral amount, token price, and liquidation values
-        (uint256 aTokenBalance,,,,,,,, bool useAsCollateral) =
-            poolDataProvider.getUserReserveData(user.collateralToken, user.id);
+        (,,,,,,,, bool useAsCollateral) = poolDataProvider.getUserReserveData(user.collateralToken, user.id);
 
         uint256 liquidationThreshold = 5e17; // 0.5
         if (healthFactor < CLOSE_FACTOR_HF_THRESHOLD) liquidationThreshold = 1e18;
@@ -250,7 +252,6 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
 
         // uint256 totalDebt = stableDebt + variableDebt;
         uint256 debtDecimalFactor = getTokenDecimalFactorFromAave(user.debtToken);
-        uint256 collateralDecimalFactor = getTokenDecimalFactorFromAave(user.collateralToken);
 
         // console.log("debt token => ", user.debtToken);
         // console.log("collateral token => ", user.collateralToken);
@@ -289,8 +290,8 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
 
             profitUsd = profitUsd / BPS_FACTOR;
 
-            console.log("profitUSD => ", profitUsd);
-            console.log("debt to Cover => ", debtToCover);
+            // console.log("profitUSD => ", profitUsd);
+            // console.log("debt to Cover => ", debtToCover);
             return (profitUsd, debtToCover);
         } else {
             return (0, 0);
