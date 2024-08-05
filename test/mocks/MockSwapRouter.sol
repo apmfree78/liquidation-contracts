@@ -4,12 +4,18 @@ pragma solidity ^0.8.13;
 import {IERC20} from "lib/forge-std/src/interfaces/IERC20.sol";
 import {ISwapRouter} from "lib/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import {console} from "lib/forge-std/src/Test.sol";
+import "lib/aave-v3-core/contracts/mocks/oracle/PriceOracle.sol";
 
 contract MockSwapRouter {
     uint24 public constant FEE_DENOMINATOR = 1e6; // To represent fee in parts per million for precision
     uint24 public constant FEE_PERCENTAGE = 3000; // Fee percentage in basis points, example: 0.3%
+    address private immutable i_priceOracle;
 
     mapping(address => uint256[2]) tokenData; // price , decimals
+
+    constructor(address priceOracleAddress) {
+        i_priceOracle = priceOracleAddress;
+    }
 
     function exactOutput(ISwapRouter.ExactOutputParams calldata params) external returns (uint256 amountIn) {
         // Decode path to find tokenIn and tokenOut
@@ -22,21 +28,26 @@ contract MockSwapRouter {
         // Calculate the fee to apply on the amount out
         uint256 feeAmount = (params.amountOut * FEE_PERCENTAGE) / FEE_DENOMINATOR;
         uint256 amountOutPlusFee = params.amountOut + feeAmount;
-        (uint256 inTokenPrice, uint256 inTokenDecimals) = getTokenData(tokenIn);
-        (uint256 outTokenPrice, uint256 outTokenDecimals) = getTokenData(tokenOut);
+        uint256 inTokenPrice = PriceOracle(i_priceOracle).getAssetPrice(tokenIn);
+        uint256 outTokenPrice = PriceOracle(i_priceOracle).getAssetPrice(tokenOut);
+
+        uint256 inTokenDecimalFactor = 10 ** IERC20(tokenIn).decimals();
+        uint256 outTokenDecimalFactor = 10 ** IERC20(tokenOut).decimals();
 
         // TODO - CHECK scaling of value , looks off
-        uint256 amountIn = (amountOutPlusFee * outTokenPrice) / inTokenPrice;
-        amountIn = amountIn * (10 ** outTokenDecimals) / (10 ** inTokenDecimals);
+        uint256 _amountIn = (amountOutPlusFee * outTokenPrice) / inTokenPrice;
+        _amountIn = (_amountIn * inTokenDecimalFactor) / outTokenDecimalFactor;
 
+        console.log("amount In for collateral", _amountIn);
+        require(_amountIn < params.amountInMaximum, "cannot tranfer more than amountInMaximum");
         // Transfer the maximum amount allowed from the caller to this contract
-        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        IERC20(tokenIn).transferFrom(msg.sender, address(this), _amountIn);
 
         // Simulate the swap by sending the exact output amount to the recipient
         IERC20(tokenOut).transfer(params.recipient, params.amountOut);
 
         // Simplify the return to just use the maximum input as the amount used for the swap
-        return amountIn;
+        return _amountIn;
     }
 
     function getTokenIn(bytes memory path) internal pure returns (address tokenIn) {
@@ -55,14 +66,5 @@ contract MockSwapRouter {
         assembly {
             tokenOut := div(mload(add(path, add(32, sub(mload(path), 20)))), 0x1000000000000000000000000)
         }
-    }
-
-    function getTokenData(address token) public view returns (uint256, uint256) {
-        return (tokenData[token][0], tokenData[token][1]);
-    }
-
-    function setTokenData(address token, uint256 price, uint256 decimals) public {
-        tokenData[token][0] = price;
-        tokenData[token][1] = decimals;
     }
 }

@@ -163,7 +163,6 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         uint256 amountInMax = collateralToken.balanceOf(address(this));
         bytes memory path = abi.encodePacked(collateralTokenAddress, uint24(3000), debtTokenAddress);
 
-        // TODO - CHECK the values you are submitting , should
         ISwapRouter.ExactOutputParams memory swapParams = ISwapRouter.ExactOutputParams({
             path: path,
             recipient: address(this),
@@ -173,7 +172,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         });
 
         // token swap
-        collateralToken.approve(address(swapRouter), amountInMax);
+        collateralToken.approve(address(swapRouter), type(uint256).max);
         swapRouter.exactOutput(swapParams);
 
         // check swap was a successful
@@ -261,7 +260,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         console.log("user as Collateral =>", useAsCollateral);
         console.log("liquidationThreshold =>", liquidationThreshold);
         console.log("liquidationBonus =>", liquidationBonus);
-        console.log("collateral Price =>", debtPrice);
+        console.log("debt token Price =>", debtPrice);
         console.log("debt debtDecimalFactor =>", debtDecimalFactor);
 
         /**

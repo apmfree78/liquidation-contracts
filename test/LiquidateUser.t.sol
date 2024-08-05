@@ -26,7 +26,7 @@ contract LiquidateUserTest is Test {
     uint256 public constant STARTING_USER_BALANCE = 10000 ether;
     uint256 public constant STARTING_TOKEN_AMOUNT = 10000 ether;
     uint256 public constant SUPPLY = 10000e6;
-    uint256 public constant SUPPLY_WETH = 333e16; //3.33 ETH ~ $10k
+    uint256 public constant SUPPLY_WETH = 37e17; //3.7 ETH
     uint256 public constant BORROW = 10000e6;
 
     address public poolAddress;
@@ -60,7 +60,6 @@ contract LiquidateUserTest is Test {
             address(usdt_token), 6, 0, LIQUIDATION_THRESHOLD, LIQUIDATION_BONUS, 0, true, true, true, true, false
         );
         PriceOracle(priceOracleAddress).setAssetPrice(address(usdt_token), 1e18);
-        MockSwapRouter(swapRouterAddress).setTokenData(address(usdt_token), 1e18, 6);
         console.log("usdt token => ", address(usdt_token));
 
         dai_token = new MintableERC20("Dai Stablecoin", "Dai", 18);
@@ -68,7 +67,6 @@ contract LiquidateUserTest is Test {
             address(dai_token), 18, 0, LIQUIDATION_THRESHOLD, LIQUIDATION_BONUS, 0, true, true, true, true, false
         );
         PriceOracle(priceOracleAddress).setAssetPrice(address(dai_token), 1e18);
-        MockSwapRouter(swapRouterAddress).setTokenData(address(dai_token), 1e18, 18);
         console.log("dai token => ", address(dai_token));
 
         weth = new WETH9Mocked();
@@ -76,7 +74,6 @@ contract LiquidateUserTest is Test {
             address(weth), 18, 0, LIQUIDATION_THRESHOLD, LIQUIDATION_BONUS, 0, true, true, true, true, false
         );
         PriceOracle(priceOracleAddress).setAssetPrice(address(weth), 3000e18);
-        MockSwapRouter(swapRouterAddress).setTokenData(address(weth), 3000e18, 18);
         console.log("weth token => ", address(weth));
 
         // PROVIDER USERS WITH TOKENS

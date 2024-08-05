@@ -180,11 +180,13 @@ contract MockPool {
             uint256 debtPrice = PriceOracle(i_priceOracle).getAssetPrice(debtAsset);
             uint256 collateralPrice = PriceOracle(i_priceOracle).getAssetPrice(collateralAsset);
 
-            uint256 _amount = (debtPrice * debtToCover) / collateralPrice;
+            uint256 _amount = (debtPrice * debtToCover) / (10 ** IERC20(debtAsset).decimals());
 
             // TODO - convert to price in ETH?
-            uint256 maxAmountOfCollateralToLiquidate =
-                (_amount * _user.tokens[uint256(collateralTokenIndex)].liquidationBonus) / BPS_FACTOR;
+            uint256 maxAmountOfCollateralToLiquidate = (
+                _amount * _user.tokens[uint256(collateralTokenIndex)].liquidationBonus
+                    * (10 ** IERC20(collateralAsset).decimals())
+            ) / (BPS_FACTOR * collateralPrice);
 
             // transfer funds
             IERC20(debtAsset).transferFrom(msg.sender, address(this), debtToCover);
