@@ -42,6 +42,14 @@ contract LiquidateUserTest is Test {
     WETH9Mocked public weth;
     address public USER = makeAddr("user");
 
+    event LiquidateAccount(
+        address indexed liquidator,
+        address indexed beneficiary,
+        address indexed collateralToken,
+        uint256 profit,
+        address user
+    );
+
     function setUp() external {
         DeployLiquidateUser deployLiquidateUser = new DeployLiquidateUser();
         HelperConfig helperConfig;
@@ -104,10 +112,9 @@ contract LiquidateUserTest is Test {
         LiquidateUser.User[] memory user = setupUser(address(usdt_token), address(usdt_token), SUPPLY, BORROW);
         // creat aave user account
         vm.startPrank(USER);
+        vm.expectEmit(false, false, false, false, address(liquidateUser));
 
-        // LiquidateUser.User[] memory user = new LiquidateUser.User[](1);
-        //
-        // user[0] = LiquidateUser.User({id: USER, debtToken: address(usdt_token), collateralToken: address(usdt_token)});
+        emit LiquidateAccount(address(liquidateUser), address(0), address(0), 0, USER);
 
         liquidateUser.findAndLiquidateAccount(user);
         vm.stopPrank();
@@ -117,6 +124,49 @@ contract LiquidateUserTest is Test {
         LiquidateUser.User[] memory user = setupUser(address(weth), address(usdt_token), SUPPLY_WETH, BORROW);
         // creat aave user account
         vm.startPrank(USER);
+        vm.expectEmit(false, false, false, false, address(liquidateUser));
+
+        emit LiquidateAccount(address(liquidateUser), address(0), address(0), 0, USER);
+        liquidateUser.findAndLiquidateAccount(user);
+        vm.stopPrank();
+    }
+
+    function testLiquidateRevertsWithHighHealthFactor() public {
+        LiquidateUser.User[] memory user = setupUser(address(weth), address(usdt_token), SUPPLY_WETH, BORROW / 10);
+        // creat aave user account
+        vm.startPrank(USER);
+        vm.expectRevert(LiquidateUser.NoUserAccountQualifiedForLiquidation.selector);
+
+        liquidateUser.findAndLiquidateAccount(user);
+        vm.stopPrank();
+    }
+
+    function testLiquidateRevertsWithLowProfit() public {
+        LiquidateUser.User[] memory user = setupUser(address(weth), address(usdt_token), SUPPLY_WETH / 20, BORROW / 20);
+        // creat aave user account
+        vm.startPrank(USER);
+        vm.expectRevert(LiquidateUser.NoUserAccountQualifiedForLiquidation.selector);
+
+        liquidateUser.findAndLiquidateAccount(user);
+        vm.stopPrank();
+    }
+
+    function testLiquidateRevertsWithTooLowHealthFactor() public {
+        LiquidateUser.User[] memory user = setupUser(address(weth), address(usdt_token), 0, BORROW);
+        // creat aave user account
+        vm.startPrank(USER);
+        vm.expectRevert(LiquidateUser.NoUserAccountQualifiedForLiquidation.selector);
+
+        liquidateUser.findAndLiquidateAccount(user);
+        vm.stopPrank();
+    }
+
+    function testLiquidateRevertsWithNoDebt() public {
+        LiquidateUser.User[] memory user = setupUser(address(weth), address(usdt_token), SUPPLY_WETH, 0);
+        // creat aave user account
+        vm.startPrank(USER);
+        vm.expectRevert(LiquidateUser.NoUserAccountQualifiedForLiquidation.selector);
+
         liquidateUser.findAndLiquidateAccount(user);
         vm.stopPrank();
     }

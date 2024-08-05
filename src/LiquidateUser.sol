@@ -14,6 +14,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
     error NoCollateralToken();
     error InsufficientBalanceToPayLoan();
     error NotEnoughDebtTokenToCoverLiquidation();
+    error NoUserAccountQualifiedForLiquidation();
 
     struct User {
         address id;
@@ -111,6 +112,8 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
                 maxProfit,
                 topProfitAccount.user.id
             );
+        } else {
+            revert NoUserAccountQualifiedForLiquidation();
         }
     }
 
@@ -131,9 +134,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
 
         // now that account is liquidated need to swap the collateral token recieved for
         // debt token (asset) in amount of amount + premium
-        IERC20 debtToken = IERC20(asset);
         IERC20 collateralToken = IERC20(collateralTokenAddress);
-        console.log("debt token balanc before swap => ", debtToken.balanceOf(address(this)));
 
         // TODO - UPDATE THIS PLEASE!!!
         if (collateralTokenAddress != asset) {
@@ -172,7 +173,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         });
 
         // token swap
-        collateralToken.approve(address(swapRouter), type(uint256).max);
+        collateralToken.approve(address(swapRouter), amountInMax);
         swapRouter.exactOutput(swapParams);
 
         // check swap was a successful
@@ -188,7 +189,6 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
 
         // if account fitting all criteria found , lets liquidate
         if (debtToken.balanceOf(address(this)) >= account.debtToCover) {
-            console.log("debt Token balance =>", debtToken.balanceOf(address(this)));
             // submit account for liquidation,
             debtToken.approve(address(aavePool), account.debtToCover * 3);
             aavePool.liquidationCall(
@@ -252,16 +252,16 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         uint256 debtPrice = priceOracle.getAssetPrice(user.debtToken);
 
         // uint256 totalDebt = stableDebt + variableDebt;
-        uint256 debtDecimalFactor = getTokenDecimalFactorFromAave(user.debtToken);
+        uint256 debtDecimalFactor = getTokenDecimalFactor(user.debtToken);
 
         console.log("debt token => ", user.debtToken);
         console.log("collateral token => ", user.collateralToken);
-        console.log("totaldebt =>", totalDebt);
-        console.log("user as Collateral =>", useAsCollateral);
-        console.log("liquidationThreshold =>", liquidationThreshold);
-        console.log("liquidationBonus =>", liquidationBonus);
+        console.log("total debt =>", totalDebt);
+        // console.log("user as Collateral =>", useAsCollateral);
+        // console.log("liquidationThreshold =>", liquidationThreshold);
+        // console.log("liquidationBonus =>", liquidationBonus);
         console.log("debt token Price =>", debtPrice);
-        console.log("debt debtDecimalFactor =>", debtDecimalFactor);
+        // console.log("debt debtDecimalFactor =>", debtDecimalFactor);
 
         /**
          * CALCULATE DEBT TO COVER - THIS WILL DETERMINE HOW MUCH COLLATERAL TO BORROW FROM FLASH FLOAN
@@ -286,18 +286,14 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
 
             profitUsd = profitUsd / BPS_FACTOR;
 
-            // console.log("profitUSD => ", profitUsd);
-            // console.log("debt to Cover => ", debtToCover);
             return (profitUsd, debtToCover);
         } else {
             return (0, 0);
         }
     }
 
-    function getTokenDecimalFactorFromAave(address token) private view returns (uint256) {
-        IPoolDataProvider poolDataProvider = IPoolDataProvider(i_aaveDataProviderAddress);
-        (uint256 debtDecimals,,,,,,,,,) = poolDataProvider.getReserveConfigurationData(token);
-        return 10 ** debtDecimals;
+    function getTokenDecimalFactor(address token) private view returns (uint256) {
+        return 10 ** IERC20(token).decimals();
     }
 
     function getAaveLiquidationBonus(address token) private view returns (uint256) {
