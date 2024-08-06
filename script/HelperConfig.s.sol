@@ -12,6 +12,8 @@ import "lib/aave-v3-core/contracts/mocks/oracle/PriceOracle.sol";
 import "test/mocks/MockPoolDataProvider.sol";
 import "test/mocks/MockSwapRouter.sol";
 import "lib/aave-v3-core/contracts/protocol/configuration/PoolAddressesProvider.sol";
+import {AaveV3Ethereum} from "constants/AaveV3Ethereum.sol";
+import {AaveV3Sepolia} from "constants/AaveV3Sepolia.sol";
 
 contract HelperConfig is Script {
     struct NetworkConfig {
@@ -40,10 +42,10 @@ contract HelperConfig is Script {
 
     function getSepoliaEthConfig() public pure returns (NetworkConfig memory) {
         return NetworkConfig({
-            poolAddress: 0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951,
-            dataProviderAddress: 0x3e9708d80f7B3e43118013075F7e95CE3AB31F31,
-            priceOracleAddress: 0x2da88497588bf89281816106C7259e31AF45a663,
-            poolAddressesProvider: 0x012bAC54348C0E635dCAc9D5FB99f06F24136C9A,
+            poolAddress: address(AaveV3Sepolia.POOL),
+            dataProviderAddress: address(AaveV3Sepolia.AAVE_PROTOCOL_DATA_PROVIDER),
+            priceOracleAddress: address(AaveV3Sepolia.ORACLE),
+            poolAddressesProvider: address(AaveV3Sepolia.POOL_ADDRESSES_PROVIDER),
             swapRouterAddress: 0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E,
             walletAddress: wallet
         });
@@ -51,10 +53,10 @@ contract HelperConfig is Script {
 
     function getMainnetConfig() public pure returns (NetworkConfig memory) {
         return NetworkConfig({
-            poolAddress: 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2,
-            dataProviderAddress: 0x7B4EB56E7CD4b454BA8ff71E4518426369a138a3,
-            priceOracleAddress: 0x54586bE62E3c3580375aE3723C145253060Ca0C2,
-            poolAddressesProvider: 0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e,
+            poolAddress: address(AaveV3Ethereum.POOL),
+            dataProviderAddress: address(AaveV3Ethereum.AAVE_PROTOCOL_DATA_PROVIDER),
+            priceOracleAddress: address(AaveV3Ethereum.ORACLE),
+            poolAddressesProvider: address(AaveV3Ethereum.POOL_ADDRESSES_PROVIDER),
             swapRouterAddress: 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45,
             walletAddress: wallet
         });
