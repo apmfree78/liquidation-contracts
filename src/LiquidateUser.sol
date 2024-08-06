@@ -190,7 +190,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         // if account fitting all criteria found , lets liquidate
         if (debtToken.balanceOf(address(this)) >= account.debtToCover) {
             // submit account for liquidation,
-            debtToken.approve(address(aavePool), account.debtToCover * 3);
+            debtToken.approve(address(aavePool), account.debtToCover * 3); // this cover loan repayment with aave too
             aavePool.liquidationCall(
                 account.user.collateralToken, account.user.debtToken, account.user.id, account.debtToCover, false
             );
@@ -213,7 +213,6 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         uint256 debtAmount = debtToken.balanceOf(address(this));
 
         if (collateralTokenAddress != debtTokenAddress) {
-            // collateralToken.approve(address(this), collateralAmount);
             collateralToken.transfer(i_walletAddress, collateralAmount);
             console.log("profit taken of amount (collateral Token)", collateralAmount);
         }
@@ -221,7 +220,6 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         if (debtAmount > repaymentAmount) {
             uint256 remainingBalance = debtAmount - repaymentAmount;
             console.log("remaining balance", remainingBalance);
-            // debtToken.approve(address(this), remainingBalance);
             debtToken.transfer(i_walletAddress, remainingBalance);
 
             uint256 debtBalance = debtToken.balanceOf(address(this));
@@ -257,11 +255,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         console.log("debt token => ", user.debtToken);
         console.log("collateral token => ", user.collateralToken);
         console.log("total debt =>", totalDebt);
-        // console.log("user as Collateral =>", useAsCollateral);
-        // console.log("liquidationThreshold =>", liquidationThreshold);
-        // console.log("liquidationBonus =>", liquidationBonus);
         console.log("debt token Price =>", debtPrice);
-        // console.log("debt debtDecimalFactor =>", debtDecimalFactor);
 
         /**
          * CALCULATE DEBT TO COVER - THIS WILL DETERMINE HOW MUCH COLLATERAL TO BORROW FROM FLASH FLOAN
