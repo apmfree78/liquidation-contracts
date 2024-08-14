@@ -7,6 +7,3 @@
 [submodule "lib/v3-periphery"]
 	path = lib/v3-periphery
 	url = https://github.com/Uniswap/v3-periphery
-[submodule "lib/1inch-v2-contracts"]
-	path = lib/1inch-v2-contracts
-	url = https://github.com/1inch/1inch-v2-contracts

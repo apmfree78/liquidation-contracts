@@ -156,25 +156,36 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         IERC20 debtToken = IERC20(debtTokenAddress);
         IERC20 collateralToken = IERC20(collateralTokenAddress);
         ISwapRouter swapRouter = ISwapRouter(i_swapRouterAddress);
+        // TODO - add 1inch address
 
         // sanity check , contract should now have a positive balance of collateral token
         if (collateralToken.balanceOf(address(this)) == 0) revert NoCollateralToken();
 
         // need amount + premium of debtToken to pay off loan, use uniswap to get this amount
         uint256 amountInMax = collateralToken.balanceOf(address(this));
-        bytes memory path = abi.encodePacked(collateralTokenAddress, uint24(3000), debtTokenAddress);
 
-        ISwapRouter.ExactOutputParams memory swapParams = ISwapRouter.ExactOutputParams({
-            path: path,
+        // ISwapRouter.ExactOutputParams memory swapParams = ISwapRouter.ExactOutputParams({
+        //     path: path,
+        //     recipient: address(this),
+        //     deadline: block.timestamp + 300,
+        //     amountOut: loanRepaymentAmount,
+        //     amountInMaximum: amountInMax
+        // });
+        //
+        ISwapRouter.ExactOutputSingleParams memory swapParams = ISwapRouter.ExactOutputSingleParams({
+            tokenIn: collateralTokenAddress,
+            tokenOut: debtTokenAddress,
+            fee: uint24(3000),
             recipient: address(this),
             deadline: block.timestamp + 300,
             amountOut: loanRepaymentAmount,
-            amountInMaximum: amountInMax
+            amountInMaximum: amountInMax,
+            sqrtPriceLimitX96: 0
         });
 
         // token swap
         collateralToken.approve(address(swapRouter), amountInMax);
-        swapRouter.exactOutput(swapParams);
+        swapRouter.exactOutputSingle(swapParams);
 
         // check swap was a successful
         console.log("token swap successful");

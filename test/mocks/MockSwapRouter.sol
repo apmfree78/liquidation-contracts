@@ -17,6 +17,43 @@ contract MockSwapRouter {
         i_priceOracle = priceOracleAddress;
     }
 
+    function exactOutputSingle(ISwapRouter.ExactOutputSingleParams calldata params)
+        external
+        payable
+        returns (uint256 amountIn)
+    {
+        // Decode path to find tokenIn and tokenOut
+        // Assume path encodes tokenIn at start and tokenOut at an offset, simplified
+        // Decode the path to get tokenIn and tokenOut addresses
+
+        address tokenIn = params.tokenIn;
+        address tokenOut = params.tokenOut;
+
+        // Calculate the fee to apply on the amount out
+        uint256 feeAmount = (params.amountOut * FEE_PERCENTAGE) / FEE_DENOMINATOR;
+        uint256 amountOutPlusFee = params.amountOut + feeAmount;
+        uint256 inTokenPrice = PriceOracle(i_priceOracle).getAssetPrice(tokenIn);
+        uint256 outTokenPrice = PriceOracle(i_priceOracle).getAssetPrice(tokenOut);
+
+        uint256 inTokenDecimalFactor = 10 ** IERC20(tokenIn).decimals();
+        uint256 outTokenDecimalFactor = 10 ** IERC20(tokenOut).decimals();
+
+        // TODO - CHECK scaling of value , looks off
+        uint256 _amountIn = (amountOutPlusFee * outTokenPrice) / inTokenPrice;
+        _amountIn = (_amountIn * inTokenDecimalFactor) / outTokenDecimalFactor;
+
+        console.log("amount In for collateral", _amountIn);
+        require(_amountIn < params.amountInMaximum, "cannot tranfer more than amountInMaximum");
+        // Transfer the maximum amount allowed from the caller to this contract
+        IERC20(tokenIn).transferFrom(msg.sender, address(this), _amountIn);
+
+        // Simulate the swap by sending the exact output amount to the recipient
+        IERC20(tokenOut).transfer(params.recipient, params.amountOut);
+
+        // Simplify the return to just use the maximum input as the amount used for the swap
+        return _amountIn;
+    }
+
     function exactOutput(ISwapRouter.ExactOutputParams calldata params) external returns (uint256 amountIn) {
         // Decode path to find tokenIn and tokenOut
         // Assume path encodes tokenIn at start and tokenOut at an offset, simplified

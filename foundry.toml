@@ -7,5 +7,6 @@ libs = ["lib"]
 remappings = [
   "@aave-v3-origin=lib/aave-v3-origin/src",
   "@aave-address-book=lib/aave-address-book/src/core/contracts",
+  "@openzeppelin=lib/openzeppelin-solidity",
 ]
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

@@ -41,6 +41,7 @@ contract LiquidateUserTest is Test {
     MintableERC20 public dai_token;
     WETH9Mocked public weth;
     address public USER = makeAddr("user");
+    address public USER2 = makeAddr("user2");
 
     event LiquidateAccount(
         address indexed liquidator,
@@ -61,6 +62,9 @@ contract LiquidateUserTest is Test {
 
         // FUND USER
         vm.deal(USER, STARTING_USER_BALANCE);
+        vm.deal(USER2, STARTING_USER_BALANCE);
+        console.log("user 1 ", USER);
+        console.log("user 2 ", USER2);
 
         // STEP MOCK TOKENS
         usdt_token = new MintableERC20("Tether USD", "USDT", 6);
@@ -96,8 +100,19 @@ contract LiquidateUserTest is Test {
         weth.approve(address(poolAddress), SUPPLY);
         vm.stopPrank();
 
+        vm.startPrank(USER2);
+        usdt_token.mint(STARTING_TOKEN_AMOUNT);
+        usdt_token.approve(address(poolAddress), SUPPLY);
+
+        dai_token.mint(STARTING_TOKEN_AMOUNT);
+        dai_token.approve(address(poolAddress), SUPPLY);
+
+        weth.mint(STARTING_USER_BALANCE);
+        weth.approve(address(poolAddress), SUPPLY);
+        vm.stopPrank();
+
         // fund mock contracts
-        // tokesn for pool contract
+        // tokens for pool contract
         usdt_token.mint(poolAddress, 100000 ether);
         weth.mint(poolAddress, 100000 ether);
         dai_token.mint(poolAddress, 100000 ether);
@@ -108,8 +123,9 @@ contract LiquidateUserTest is Test {
         dai_token.mint(swapRouterAddress, 100000 ether);
     }
 
-    function testwithSameDebtAndCollateralToken() public {
-        LiquidateUser.User[] memory user = setupUser(address(usdt_token), address(usdt_token), SUPPLY, BORROW);
+    function testWithSameDebtAndCollateralToken() public {
+        LiquidateUser.User[] memory user = new LiquidateUser.User[](1);
+        user[0] = setupUser(USER, address(usdt_token), address(usdt_token), SUPPLY, BORROW);
         // creat aave user account
         vm.startPrank(USER);
         vm.expectEmit(false, false, false, false, address(liquidateUser));
@@ -120,19 +136,88 @@ contract LiquidateUserTest is Test {
         vm.stopPrank();
     }
 
-    function testwithDifferntDebtAndCollateralToken() public {
-        LiquidateUser.User[] memory user = setupUser(address(weth), address(usdt_token), SUPPLY_WETH, BORROW);
+    function test2UsersFirstQualifiedForLiquidationAndSecondNot() public {
+        LiquidateUser.User[] memory user = new LiquidateUser.User[](2);
+        user[0] = setupUser(USER, address(weth), address(usdt_token), SUPPLY_WETH, BORROW);
+        user[1] = setupUser(USER2, address(weth), address(usdt_token), SUPPLY_WETH, BORROW / 10);
         // creat aave user account
         vm.startPrank(USER);
         vm.expectEmit(false, false, false, false, address(liquidateUser));
 
         emit LiquidateAccount(address(liquidateUser), address(0), address(0), 0, USER);
+
+        liquidateUser.findAndLiquidateAccount(user);
+        vm.stopPrank();
+    }
+
+    function test2UsersSecondQualifiedForLiquidationAndFirstNot() public {
+        LiquidateUser.User[] memory user = new LiquidateUser.User[](2);
+        user[0] = setupUser(USER2, address(weth), address(usdt_token), SUPPLY_WETH, BORROW / 10);
+        user[1] = setupUser(USER, address(weth), address(usdt_token), SUPPLY_WETH, BORROW);
+        // creat aave user account
+        vm.startPrank(USER);
+        vm.expectEmit(false, false, false, false, address(liquidateUser));
+
+        emit LiquidateAccount(address(liquidateUser), address(0), address(0), 0, USER);
+
+        liquidateUser.findAndLiquidateAccount(user);
+        vm.stopPrank();
+    }
+
+    function test2UsersBothQualifiedForLiquidation() public {
+        LiquidateUser.User[] memory user = new LiquidateUser.User[](2);
+        user[0] = setupUser(USER2, address(weth), address(usdt_token), SUPPLY_WETH, BORROW);
+        user[1] = setupUser(USER, address(weth), address(usdt_token), 2 * SUPPLY_WETH, 2 * BORROW);
+        // creat aave user account
+        vm.startPrank(USER);
+        vm.expectEmit(false, false, false, false, address(liquidateUser));
+
+        // check user account with higher profit is liquidated
+        emit LiquidateAccount(address(liquidateUser), address(0), address(0), 0, USER2);
+
+        liquidateUser.findAndLiquidateAccount(user);
+        vm.stopPrank();
+    }
+
+    function test2UsersBothNotQualifiedForLiquidation() public {
+        LiquidateUser.User[] memory user = new LiquidateUser.User[](2);
+        user[0] = setupUser(USER2, address(weth), address(usdt_token), SUPPLY_WETH, BORROW / 10);
+        user[1] = setupUser(USER, address(weth), address(usdt_token), 2 * SUPPLY_WETH, BORROW / 5);
+
+        vm.startPrank(USER);
+        vm.expectRevert(LiquidateUser.NoUserAccountQualifiedForLiquidation.selector);
+
+        liquidateUser.findAndLiquidateAccount(user);
+        vm.stopPrank();
+    }
+
+    function testWithDifferentDebtAndCollateralToken() public {
+        LiquidateUser.User[] memory user = new LiquidateUser.User[](1);
+        user[0] = setupUser(USER, address(weth), address(usdt_token), SUPPLY_WETH, BORROW);
+        // creat aave user account
+        vm.startPrank(USER);
+        vm.expectEmit(false, false, false, false, address(liquidateUser));
+
+        emit LiquidateAccount(address(liquidateUser), address(0), address(0), 0, USER);
+        liquidateUser.findAndLiquidateAccount(user);
+        vm.stopPrank();
+    }
+
+    function testLiquidateRevertsTwoUsersWithHighHealthFactor() public {
+        LiquidateUser.User[] memory user = new LiquidateUser.User[](2);
+        user[0] = setupUser(USER, address(weth), address(usdt_token), SUPPLY_WETH, BORROW / 10);
+        user[1] = setupUser(USER2, address(weth), address(usdt_token), SUPPLY_WETH, BORROW / 10);
+        // creat aave user account
+        vm.startPrank(USER);
+        vm.expectRevert(LiquidateUser.NoUserAccountQualifiedForLiquidation.selector);
+
         liquidateUser.findAndLiquidateAccount(user);
         vm.stopPrank();
     }
 
     function testLiquidateRevertsWithHighHealthFactor() public {
-        LiquidateUser.User[] memory user = setupUser(address(weth), address(usdt_token), SUPPLY_WETH, BORROW / 10);
+        LiquidateUser.User[] memory user = new LiquidateUser.User[](1);
+        user[0] = setupUser(USER, address(weth), address(usdt_token), SUPPLY_WETH, BORROW / 10);
         // creat aave user account
         vm.startPrank(USER);
         vm.expectRevert(LiquidateUser.NoUserAccountQualifiedForLiquidation.selector);
@@ -142,7 +227,8 @@ contract LiquidateUserTest is Test {
     }
 
     function testLiquidateRevertsWithLowProfit() public {
-        LiquidateUser.User[] memory user = setupUser(address(weth), address(usdt_token), SUPPLY_WETH / 20, BORROW / 20);
+        LiquidateUser.User[] memory user = new LiquidateUser.User[](1);
+        user[0] = setupUser(USER, address(weth), address(usdt_token), SUPPLY_WETH / 20, BORROW / 20);
         // creat aave user account
         vm.startPrank(USER);
         vm.expectRevert(LiquidateUser.NoUserAccountQualifiedForLiquidation.selector);
@@ -152,7 +238,8 @@ contract LiquidateUserTest is Test {
     }
 
     function testLiquidateRevertsWithTooLowHealthFactor() public {
-        LiquidateUser.User[] memory user = setupUser(address(weth), address(usdt_token), 0, BORROW);
+        LiquidateUser.User[] memory user = new LiquidateUser.User[](1);
+        user[0] = setupUser(USER, address(weth), address(usdt_token), 0, BORROW);
         // creat aave user account
         vm.startPrank(USER);
         vm.expectRevert(LiquidateUser.NoUserAccountQualifiedForLiquidation.selector);
@@ -162,7 +249,8 @@ contract LiquidateUserTest is Test {
     }
 
     function testLiquidateRevertsWithNoDebt() public {
-        LiquidateUser.User[] memory user = setupUser(address(weth), address(usdt_token), SUPPLY_WETH, 0);
+        LiquidateUser.User[] memory user = new LiquidateUser.User[](1);
+        user[0] = setupUser(USER, address(weth), address(usdt_token), SUPPLY_WETH, 0);
         // creat aave user account
         vm.startPrank(USER);
         vm.expectRevert(LiquidateUser.NoUserAccountQualifiedForLiquidation.selector);
@@ -171,25 +259,28 @@ contract LiquidateUserTest is Test {
         vm.stopPrank();
     }
 
-    function setupUser(address supplyToken, address borrowToken, uint256 supplyAmount, uint256 borrowAmount)
-        public
-        returns (LiquidateUser.User[] memory)
-    {
+    function setupUser(
+        address user,
+        address supplyToken,
+        address borrowToken,
+        uint256 supplyAmount,
+        uint256 borrowAmount
+    ) public returns (LiquidateUser.User memory) {
         // ADD COLLATERAL AND BORROW FROM POOL CONTRACT
-        MockPool(poolAddress).supply(supplyToken, supplyAmount, USER, 0);
-        MockPool(poolAddress).borrow(borrowToken, borrowAmount, 1, 0, USER);
+        MockPool(poolAddress).supply(supplyToken, supplyAmount, user, 0);
+        MockPool(poolAddress).borrow(borrowToken, borrowAmount, 1, 0, user);
 
         // DATA PROVIDER IS SETUP WITH USER
         MockPoolDataProvider(dataProviderAddress).setUserReserveData(
-            USER, supplyToken, supplyAmount, 0, 0, 0, 0, 0, 0, 0, true
+            user, supplyToken, supplyAmount, 0, 0, 0, 0, 0, 0, 0, true
         );
         MockPoolDataProvider(dataProviderAddress).setUserReserveData(
-            USER, borrowToken, 0, borrowAmount, 0, 0, 0, 0, 0, 0, true
+            user, borrowToken, 0, borrowAmount, 0, 0, 0, 0, 0, 0, true
         );
         LiquidateUser.User[] memory user = new LiquidateUser.User[](1);
 
         user[0] = LiquidateUser.User({id: USER, debtToken: address(borrowToken), collateralToken: address(supplyToken)});
 
-        return user;
+        return user[0];
     }
 }
