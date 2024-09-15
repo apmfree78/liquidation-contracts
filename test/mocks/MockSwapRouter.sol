@@ -71,7 +71,6 @@ contract MockSwapRouter {
         uint256 inTokenDecimalFactor = 10 ** IERC20(tokenIn).decimals();
         uint256 outTokenDecimalFactor = 10 ** IERC20(tokenOut).decimals();
 
-        // TODO - CHECK scaling of value , looks off
         uint256 _amountIn = (amountOutPlusFee * outTokenPrice) / inTokenPrice;
         _amountIn = (_amountIn * inTokenDecimalFactor) / outTokenDecimalFactor;
 
