@@ -17,6 +17,45 @@ contract MockSwapRouter {
         i_priceOracle = priceOracleAddress;
     }
 
+    function exactInputSingle(ISwapRouter.ExactInputSingleParams calldata params)
+        external
+        payable
+        returns (uint256 amountOut)
+    {
+        require(block.timestamp <= params.deadline, "transaction expired");
+
+        address tokenIn = params.tokenIn;
+        address tokenOut = params.tokenOut;
+
+        uint256 inTokenDecimalFactor = 10 ** IERC20(tokenIn).decimals();
+        uint256 outTokenDecimalFactor = 10 ** IERC20(tokenOut).decimals();
+
+        uint256 inTokenPrice = PriceOracle(i_priceOracle).getAssetPrice(tokenIn);
+        uint256 outTokenPrice = PriceOracle(i_priceOracle).getAssetPrice(tokenOut);
+
+        // calculate amountOutMax
+        // TODO - CHECK scaling of value , looks off
+        uint256 amountOutMax = (params.amountIn * inTokenPrice) / outTokenPrice;
+        amountOutMax = (amountOutMax * outTokenDecimalFactor) / inTokenDecimalFactor;
+
+        // Calculate the fee to apply on the amount out
+        uint256 feeAmount = (amountOutMax * params.fee) / FEE_DENOMINATOR;
+        amountOut = amountOutMax - feeAmount;
+
+        console.log("amount out after fee", amountOut);
+        require(amountOut >= params.amountOutMinimum, "minimum token output not met");
+        require(IERC20(tokenIn).balanceOf(msg.sender) >= params.amountIn, "insufficient balance for swap");
+
+        // Transfer amountIn to this contract
+        IERC20(tokenIn).transferFrom(msg.sender, address(this), params.amountIn);
+
+        // Simulate the swap by sending the exact output amount to the recipient
+        IERC20(tokenOut).transfer(params.recipient, amountOut);
+
+        // Simplify the return to just use the maximum input as the amount used for the swap
+        return amountOut;
+    }
+
     // ADD exactInputSingle mock
 
     function exactOutputSingle(ISwapRouter.ExactOutputSingleParams calldata params)
@@ -24,9 +63,7 @@ contract MockSwapRouter {
         payable
         returns (uint256 amountIn)
     {
-        // Decode path to find tokenIn and tokenOut
-        // Assume path encodes tokenIn at start and tokenOut at an offset, simplified
-        // Decode the path to get tokenIn and tokenOut addresses
+        require(block.timestamp <= params.deadline, "transaction expired");
 
         address tokenIn = params.tokenIn;
         address tokenOut = params.tokenOut;
@@ -46,6 +83,7 @@ contract MockSwapRouter {
 
         console.log("amount In for collateral", _amountIn);
         require(_amountIn < params.amountInMaximum, "cannot tranfer more than amountInMaximum");
+        require(IERC20(tokenIn).balanceOf(msg.sender) >= _amountIn, "insufficient balance for swap");
         // Transfer the maximum amount allowed from the caller to this contract
         IERC20(tokenIn).transferFrom(msg.sender, address(this), _amountIn);
 
