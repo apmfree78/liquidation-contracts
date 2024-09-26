@@ -37,6 +37,9 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
     uint24 private constant FEE_PERCENTAGE = 3000; // Fee percentage in basis points, example: 0.3%
     uint24 private constant MAX_SLIPPAGE_TOLERANCE = 10000; // Fee percentage in basis points, example: 0.3%
 
+    // TODO - turn into immutable so we can test
+    address private constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+
     address private immutable i_aavePoolAddress;
     address private immutable i_aaveDataProviderAddress;
     address private immutable i_aavePriceOracleAddress;
@@ -145,6 +148,8 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         }
 
         console.log("collateral token balance AFTER swap => ", collateralToken.balanceOf(address(this)));
+        // TODO - if collateral is not WETH then convert collateral to WETH
+        swapCollateralForWETH(collateralTokenAddress);
         console.log("transfering remaining collateral token to liquidator wallet");
         transferProfitToWallet(collateralTokenAddress, asset, amount + premium);
         return true;
@@ -167,7 +172,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
 
         // get precise amountIn account for fees and slippage
         uint256 amountIn =
-            getAmountInIncludingFeeAndSlippage(collateralTokenAddress, debtTokenAddress, loanRepaymentAmount, 3000);
+            getAmountInIncludingFeeAndSlippage(collateralTokenAddress, debtTokenAddress, loanRepaymentAmount);
 
         if (amountIn > amountInMax) {
             // value too big
@@ -194,6 +199,35 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         if (debtToken.balanceOf(address(this)) < loanRepaymentAmount) {
             revert InsufficientBalanceToPayLoan();
         }
+    }
+
+    function swapCollateralForWETH(address collateralTokenAddress) private {
+        IERC20 collateralToken = IERC20(collateralTokenAddress);
+        ISwapRouter swapRouter = ISwapRouter(i_swapRouterAddress);
+
+        if (collateralTokenAddress == WETH_ADDRESS) return; // no swap necessary!
+
+        uint256 amountIn = collateralToken.balanceOf(address(this));
+
+        // sanity check , contract should now have a positive balance of collateral token
+        if (amountIn == 0) revert NoCollateralToken();
+
+        uint256 amountOutMin = getAmountOutSlippage(collateralTokenAddress, WETH_ADDRESS, amountIn);
+
+        ISwapRouter.ExactInputSingleParams memory swapParams = ISwapRouter.ExactInputSingleParams({
+            tokenIn: collateralTokenAddress,
+            tokenOut: WETH_ADDRESS,
+            fee: uint24(3000),
+            recipient: address(this),
+            deadline: block.timestamp + 300, // TODO - should i set deadline?
+            amountIn: amountIn,
+            amountOutMinimum: amountOutMin,
+            sqrtPriceLimitX96: 0
+        });
+
+        // token swap
+        collateralToken.approve(address(swapRouter), amountIn);
+        swapRouter.exactInputSingle(swapParams);
     }
 
     function liquidateAccount(AccountToLiquidation memory account) private {
@@ -298,7 +332,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         }
     }
 
-    function getAmountInIncludingFeeAndSlippage(address tokenIn, address tokenOut, uint256 amountOut, uint24 fee)
+    function getAmountInIncludingFeeAndSlippage(address tokenIn, address tokenOut, uint256 amountOut)
         private
         view
         returns (uint256)
@@ -306,8 +340,6 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         IPriceOracle priceOracle = IPriceOracle(i_aavePriceOracleAddress);
 
         // Calculate the fee to apply on the amount out
-        uint256 feeAmount = (amountOut * fee) / FEE_DENOMINATOR;
-        uint256 amountOutPlusFee = amountOut + feeAmount;
         uint256 inTokenPrice = priceOracle.getAssetPrice(tokenIn);
         uint256 outTokenPrice = priceOracle.getAssetPrice(tokenOut);
 
@@ -315,7 +347,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         uint256 outTokenDecimalFactor = getTokenDecimalFactor(tokenOut);
 
         // exact amount in required including fee
-        uint256 _amountIn = (amountOutPlusFee * outTokenPrice) / inTokenPrice;
+        uint256 _amountIn = (amountOut * outTokenPrice) / inTokenPrice;
         _amountIn = (_amountIn * inTokenDecimalFactor) / outTokenDecimalFactor;
 
         // adding 1% slippage
@@ -323,6 +355,27 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         _amountIn = _amountIn + splippageTolerance;
 
         return _amountIn;
+    }
+
+    function getAmountOutSlippage(address tokenIn, address tokenOut, uint256 amountIn) private view returns (uint256) {
+        IPriceOracle priceOracle = IPriceOracle(i_aavePriceOracleAddress);
+
+        // Calculate the fee to apply on the amount out
+        uint256 inTokenPrice = priceOracle.getAssetPrice(tokenIn);
+        uint256 outTokenPrice = priceOracle.getAssetPrice(tokenOut);
+
+        uint256 inTokenDecimalFactor = getTokenDecimalFactor(tokenIn);
+        uint256 outTokenDecimalFactor = getTokenDecimalFactor(tokenOut);
+
+        // exact amount in required including fee
+        uint256 _amountOut = (amountIn * inTokenPrice) / outTokenPrice;
+        _amountOut = (_amountOut * outTokenDecimalFactor) / inTokenDecimalFactor;
+
+        // adding 1% slippage
+        uint256 splippageTolerance = (MAX_SLIPPAGE_TOLERANCE * _amountOut) / FEE_DENOMINATOR;
+        _amountOut = _amountOut + splippageTolerance;
+
+        return _amountOut;
     }
 
     function getTokenDecimalFactor(address token) private view returns (uint256) {
