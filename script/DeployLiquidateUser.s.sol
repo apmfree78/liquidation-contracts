@@ -19,7 +19,7 @@ contract DeployLiquidateUser is Script {
             address priceOracleAddress,
             address poolAddressesProvider,
             address swapRouterAddress,
-            address wethAddress,
+            address payable wethAddress,
             address walletAddress
         ) = helperConfig.activeNetworkConfig();
 

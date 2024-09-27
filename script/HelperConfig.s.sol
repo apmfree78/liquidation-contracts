@@ -23,7 +23,7 @@ contract HelperConfig is Script {
         address priceOracleAddress;
         address poolAddressesProvider;
         address swapRouterAddress;
-        address wethAddress;
+        address payable wethAddress;
         address walletAddress;
     }
 
@@ -49,7 +49,7 @@ contract HelperConfig is Script {
             priceOracleAddress: address(AaveV3Sepolia.ORACLE),
             poolAddressesProvider: address(AaveV3Sepolia.POOL_ADDRESSES_PROVIDER),
             swapRouterAddress: 0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E,
-            wethAddress: 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14,
+            wethAddress: payable(0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14),
             walletAddress: wallet
         });
     }
@@ -61,7 +61,7 @@ contract HelperConfig is Script {
             priceOracleAddress: address(AaveV3Ethereum.ORACLE),
             poolAddressesProvider: address(AaveV3Ethereum.POOL_ADDRESSES_PROVIDER),
             swapRouterAddress: 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45,
-            wethAddress: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
+            wethAddress: payable(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
             walletAddress: wallet
         });
     }
@@ -86,7 +86,7 @@ contract HelperConfig is Script {
             priceOracleAddress: address(priceOracle),
             poolAddressesProvider: address(provider),
             swapRouterAddress: address(mockSwapRouter),
-            wethAddress: address(weth),
+            wethAddress: payable(address(weth)),
             walletAddress: wallet
         });
     }

@@ -149,8 +149,14 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
 
         console.log("collateral token balance AFTER swap => ", collateralToken.balanceOf(address(this)));
         // TODO - if collateral is not WETH then convert collateral to WETH
-        swapCollateralForWETH(collateralTokenAddress);
-        console.log("transfering remaining collateral token to liquidator wallet");
+        uint256 amountToSwapToETH = collateralToken.balanceOf(address(this));
+
+        if (collateralTokenAddress == asset) amountToSwapToETH -= amount + premium;
+
+        console.log("swapping collateral token for WETH");
+        swapCollateralForWETH(collateralTokenAddress, amountToSwapToETH);
+
+        console.log("transfering remaining tokens (above what is owned) to wallet");
         transferProfitToWallet(collateralTokenAddress, asset, amount + premium);
         return true;
     }
@@ -200,13 +206,11 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         }
     }
 
-    function swapCollateralForWETH(address collateralTokenAddress) private {
+    function swapCollateralForWETH(address collateralTokenAddress, uint256 amountIn) private {
         IERC20 collateralToken = IERC20(collateralTokenAddress);
         ISwapRouter swapRouter = ISwapRouter(i_swapRouterAddress);
 
         if (collateralTokenAddress == i_wethAddress) return; // no swap necessary!
-
-        uint256 amountIn = collateralToken.balanceOf(address(this));
 
         // sanity check , contract should now have a positive balance of collateral token
         if (amountIn == 0) revert NoCollateralToken();
@@ -380,7 +384,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
 
         // adding 1% slippage
         uint256 splippageTolerance = (MAX_SLIPPAGE_TOLERANCE * _amountOut) / FEE_DENOMINATOR;
-        _amountOut = _amountOut + splippageTolerance;
+        _amountOut = _amountOut - splippageTolerance;
 
         return _amountOut;
     }

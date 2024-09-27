@@ -42,7 +42,9 @@ contract MockSwapRouter {
         uint256 feeAmount = (amountOutMax * params.fee) / FEE_DENOMINATOR;
         amountOut = amountOutMax - feeAmount;
 
+        console.log("maximum amount out", amountOutMax);
         console.log("amount out after fee", amountOut);
+        console.log("amount out minimum", params.amountOutMinimum);
         require(amountOut >= params.amountOutMinimum, "minimum token output not met");
         require(IERC20(tokenIn).balanceOf(msg.sender) >= params.amountIn, "insufficient balance for swap");
 
