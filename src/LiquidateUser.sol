@@ -37,14 +37,12 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
     uint24 private constant FEE_PERCENTAGE = 3000; // Fee percentage in basis points, example: 0.3%
     uint24 private constant MAX_SLIPPAGE_TOLERANCE = 10000; // Fee percentage in basis points, example: 0.3%
 
-    // TODO - turn into immutable so we can test
-    address private constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-
     address private immutable i_aavePoolAddress;
     address private immutable i_aaveDataProviderAddress;
     address private immutable i_aavePriceOracleAddress;
     address private immutable i_aavePoolAddressProviderAddress;
     address private immutable i_swapRouterAddress;
+    address private immutable i_wethAddress; // send profit here at end
     address private immutable i_walletAddress; // send profit here at end
 
     constructor(
@@ -53,6 +51,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         address aavePriceOracleAddress,
         address aavePoolAddressProviderAddress,
         address swapRouterAddress,
+        address wethAddress,
         address walletAddress
     ) {
         i_aavePoolAddress = aavePoolAddress;
@@ -60,6 +59,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         i_aavePriceOracleAddress = aavePriceOracleAddress;
         i_aavePoolAddressProviderAddress = aavePoolAddressProviderAddress;
         i_swapRouterAddress = swapRouterAddress;
+        i_wethAddress = wethAddress;
         i_walletAddress = walletAddress;
     }
 
@@ -171,8 +171,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         uint256 amountInMax = collateralToken.balanceOf(address(this));
 
         // get precise amountIn account for fees and slippage
-        uint256 amountIn =
-            getAmountInIncludingFeeAndSlippage(collateralTokenAddress, debtTokenAddress, loanRepaymentAmount);
+        uint256 amountIn = getAmountInWithSlippage(collateralTokenAddress, debtTokenAddress, loanRepaymentAmount);
 
         if (amountIn > amountInMax) {
             // value too big
@@ -205,18 +204,18 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         IERC20 collateralToken = IERC20(collateralTokenAddress);
         ISwapRouter swapRouter = ISwapRouter(i_swapRouterAddress);
 
-        if (collateralTokenAddress == WETH_ADDRESS) return; // no swap necessary!
+        if (collateralTokenAddress == i_wethAddress) return; // no swap necessary!
 
         uint256 amountIn = collateralToken.balanceOf(address(this));
 
         // sanity check , contract should now have a positive balance of collateral token
         if (amountIn == 0) revert NoCollateralToken();
 
-        uint256 amountOutMin = getAmountOutSlippage(collateralTokenAddress, WETH_ADDRESS, amountIn);
+        uint256 amountOutMin = getAmountOutSlippage(collateralTokenAddress, i_wethAddress, amountIn);
 
         ISwapRouter.ExactInputSingleParams memory swapParams = ISwapRouter.ExactInputSingleParams({
             tokenIn: collateralTokenAddress,
-            tokenOut: WETH_ADDRESS,
+            tokenOut: i_wethAddress,
             fee: uint24(3000),
             recipient: address(this),
             deadline: block.timestamp + 300, // TODO - should i set deadline?
@@ -255,11 +254,19 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
     {
         IERC20 debtToken = IERC20(debtTokenAddress);
         IERC20 collateralToken = IERC20(collateralTokenAddress);
+        IERC20 wethToken = IERC20(i_wethAddress);
+
+        uint256 debtAmount = debtToken.balanceOf(address(this));
+        uint256 wethAmount = wethToken.balanceOf(address(this));
+
+        if (wethAmount > 0) {
+            wethToken.transfer(i_walletAddress, wethAmount);
+            console.log("profit taken of amount WETH", wethAmount);
+        }
 
         uint256 collateralAmount = collateralToken.balanceOf(address(this));
-        uint256 debtAmount = debtToken.balanceOf(address(this));
 
-        if (collateralTokenAddress != debtTokenAddress) {
+        if (collateralAmount > 0 && collateralTokenAddress != debtTokenAddress) {
             collateralToken.transfer(i_walletAddress, collateralAmount);
             console.log("profit taken of amount (collateral Token)", collateralAmount);
         }
@@ -332,7 +339,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         }
     }
 
-    function getAmountInIncludingFeeAndSlippage(address tokenIn, address tokenOut, uint256 amountOut)
+    function getAmountInWithSlippage(address tokenIn, address tokenOut, uint256 amountOut)
         private
         view
         returns (uint256)
