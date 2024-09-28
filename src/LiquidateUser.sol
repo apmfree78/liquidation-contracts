@@ -2,13 +2,17 @@
 pragma solidity ^0.8.18;
 
 import {console} from "lib/forge-std/src/Test.sol";
-import {IERC20} from "lib/forge-std/src/interfaces/IERC20.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/safeERC20.sol";
 import {IPool} from "lib/aave-v3-core/contracts/interfaces/IPool.sol";
 import {IPriceOracle} from "lib/aave-v3-core/contracts/interfaces/IPriceOracle.sol";
 import {IFlashLoanSimpleReceiver} from "lib/aave-v3-core/contracts/flashloan/interfaces/IFlashLoanSimpleReceiver.sol";
 import {IPoolDataProvider, IPoolAddressesProvider} from "lib/aave-v3-core/contracts/interfaces/IPoolDataProvider.sol";
 import {ISwapRouter} from "lib/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "utils/ReentracyGuard.sol";
+
+using SafeERC20 for IERC20;
 
 contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
     error NoCollateralToken();
@@ -264,21 +268,21 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         uint256 wethAmount = wethToken.balanceOf(address(this));
 
         if (wethAmount > 0) {
-            wethToken.transfer(i_walletAddress, wethAmount);
+            wethToken.safeTransfer(i_walletAddress, wethAmount);
             console.log("profit taken of amount WETH", wethAmount);
         }
 
         uint256 collateralAmount = collateralToken.balanceOf(address(this));
 
         if (collateralAmount > 0 && collateralTokenAddress != debtTokenAddress) {
-            collateralToken.transfer(i_walletAddress, collateralAmount);
+            collateralToken.safeTransfer(i_walletAddress, collateralAmount);
             console.log("profit taken of amount (collateral Token)", collateralAmount);
         }
 
         if (debtAmount > repaymentAmount) {
             uint256 remainingBalance = debtAmount - repaymentAmount;
             console.log("remaining balance", remainingBalance);
-            debtToken.transfer(i_walletAddress, remainingBalance);
+            debtToken.safeTransfer(i_walletAddress, remainingBalance);
 
             uint256 debtBalance = debtToken.balanceOf(address(this));
             if (debtBalance < repaymentAmount) revert InsufficientBalanceToPayLoan();
@@ -391,7 +395,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
 
     function getTokenDecimalFactor(address token) private view returns (uint256) {
         uint8 decimals;
-        try IERC20(token).decimals() returns (uint8 dec) {
+        try IERC20Metadata(token).decimals() returns (uint8 dec) {
             decimals = dec;
         } catch {
             decimals = 18;
