@@ -75,7 +75,7 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         address user
     );
 
-    function findAndLiquidateAccount(User[] calldata users) external noReentrancy {
+    function findAndLiquidateAccount(User[] calldata users) external payable noReentrancy {
         uint256 userCount = users.length;
         IPool aavePool = IPool(i_aavePoolAddress);
         uint256 maxProfit = 0;
@@ -122,6 +122,10 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
                 maxProfit,
                 topProfitAccount.user.id
             );
+
+            // send tip to MINER
+            uint256 tip_amount = address(this).balance;
+            block.coinbase.transfer(tip_amount);
         } else {
             revert NoUserAccountQualifiedForLiquidation();
         }
