@@ -33,7 +33,7 @@ contract QualifyUser {
 
     TopProfitUserAccount public topProfitAccount;
 
-    uint256 private constant LIQUIDATION_THRESHOLD = 1e18;
+    uint256 private constant LIQUIDATION_HF_THRESHOLD = 1e18;
     uint256 private constant MIN_HEALTH_SCORE_THRESHOLD = 1e17;
     uint256 private constant STANDARD_SCALE_FACTOR = 1e18;
     uint256 private constant BPS_FACTOR = 1e4;
@@ -65,7 +65,7 @@ contract QualifyUser {
             (,,,,, uint256 healthFactor) = aavePool.getUserAccountData(id);
             console.log("health factor =>", healthFactor);
 
-            if (healthFactor < LIQUIDATION_THRESHOLD && healthFactor > MIN_HEALTH_SCORE_THRESHOLD) {
+            if (healthFactor < LIQUIDATION_HF_THRESHOLD && healthFactor > MIN_HEALTH_SCORE_THRESHOLD) {
                 // checkout profitability
                 (uint256 profit, uint256 debtToCover) = getUserDebtToCoverAndProfit(users[i], healthFactor);
 

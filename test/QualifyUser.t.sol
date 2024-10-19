@@ -22,6 +22,8 @@ contract QualifyUserTest is Test {
         address collateralToken;
     }
 
+    uint256 private constant LIQUIDATION_HF_THRESHOLD = 1e18;
+    uint256 private constant CLOSE_FACTOR_HF_THRESHOLD = 95e16;
     uint256 private constant LIQUIDATION_THRESHOLD = 7000; // set fixed 70% liquidation threshold for testing
     uint256 private constant LIQUIDATION_BONUS = 10500; // set fixed 10% liquidation bonus for testing
     uint256 public constant STARTING_USER_BALANCE = 10000 ether;
@@ -167,7 +169,8 @@ contract QualifyUserTest is Test {
         assertEq(collateralToken, wethAddress, "collateral token does not match");
         assertEq(debtToken, address(usdt_token), "debt token does not match");
 
-        (uint256 _debtToCover, uint256 profitUsd) = getDebtToCoverAndProfit(BORROW, USDT_PRICE, USDT_DECIMALS);
+        (uint256 _debtToCover, uint256 profitUsd) =
+            getDebtToCoverAndProfit(BORROW, USDT_PRICE, USDT_DECIMALS, SUPPLY_WETH, WETH_PRICE, WETH_DECIMALS);
 
         assertEq(_debtToCover, debtToCover, "debtToCover does not match");
         assertEq(profitUsd, profit, "profit does not match");
@@ -189,7 +192,8 @@ contract QualifyUserTest is Test {
         assertEq(collateralToken, wethAddress, "collateral token does not match");
         assertEq(debtToken, address(usdt_token), "debt token does not match");
 
-        (uint256 _debtToCover, uint256 profitUsd) = getDebtToCoverAndProfit(BORROW, USDT_PRICE, USDT_DECIMALS);
+        (uint256 _debtToCover, uint256 profitUsd) =
+            getDebtToCoverAndProfit(BORROW, USDT_PRICE, USDT_DECIMALS, SUPPLY_WETH, WETH_PRICE, WETH_DECIMALS);
 
         assertEq(_debtToCover, debtToCover, "debtToCover does not match");
         assertEq(profitUsd, profit, "profit does not match");
@@ -211,7 +215,32 @@ contract QualifyUserTest is Test {
         assertEq(collateralToken, wethAddress, "collateral token does not match");
         assertEq(debtToken, address(usdt_token), "debt token does not match");
 
-        (uint256 _debtToCover, uint256 profitUsd) = getDebtToCoverAndProfit(2 * BORROW, USDT_PRICE, USDT_DECIMALS);
+        (uint256 _debtToCover, uint256 profitUsd) =
+            getDebtToCoverAndProfit(2 * BORROW, USDT_PRICE, USDT_DECIMALS, 2 * SUPPLY_WETH, WETH_PRICE, WETH_DECIMALS);
+
+        assertEq(_debtToCover, debtToCover, "debtToCover does not match");
+        assertEq(profitUsd, profit, "profit does not match");
+
+        vm.stopPrank();
+    }
+
+    function test2UsersBothQualifiedForLiquidationVersionTwo() public {
+        QualifyUser.User[] memory user = new QualifyUser.User[](2);
+        user[0] = setupUser(USER2, wethAddress, address(usdt_token), SUPPLY_WETH, BORROW);
+        user[1] = setupUser(USER, wethAddress, address(usdt_token), 250 * SUPPLY_WETH / 100, 2 * BORROW);
+        // creat aave user account
+        vm.startPrank(USER);
+        qualifyUser.checkUserAccounts(user);
+
+        (address userId, address debtToken, address collateralToken, uint256 debtToCover, uint256 profit) =
+            qualifyUser.topProfitAccount();
+        assertEq(userId, USER, "User id does not match");
+        assertEq(collateralToken, wethAddress, "collateral token does not match");
+        assertEq(debtToken, address(usdt_token), "debt token does not match");
+
+        (uint256 _debtToCover, uint256 profitUsd) = getDebtToCoverAndProfit(
+            2 * BORROW, USDT_PRICE, USDT_DECIMALS, 250 * SUPPLY_WETH / 100, WETH_PRICE, WETH_DECIMALS
+        );
 
         assertEq(_debtToCover, debtToCover, "debtToCover does not match");
         assertEq(profitUsd, profit, "profit does not match");
@@ -339,19 +368,26 @@ contract QualifyUserTest is Test {
         MockPoolDataProvider(dataProviderAddress).setUserReserveData(
             user, borrowToken, 0, borrowAmount, 0, 0, 0, 0, 0, 0, true
         );
-        QualifyUser.User[] memory user = new QualifyUser.User[](1);
 
-        user[0] = QualifyUser.User({id: USER, debtToken: address(borrowToken), collateralToken: address(supplyToken)});
-
-        return user[0];
+        return QualifyUser.User({id: user, debtToken: address(borrowToken), collateralToken: address(supplyToken)});
     }
 
-    function getDebtToCoverAndProfit(uint256 debt, uint256 debt_price, uint8 debt_decimals)
-        public
-        pure
-        returns (uint256, uint256)
-    {
-        uint256 debtToCover = debt / 2; // liquidation factor is 0.5
+    function getDebtToCoverAndProfit(
+        uint256 debt,
+        uint256 debt_price,
+        uint8 debt_decimals,
+        uint256 collateral,
+        uint256 collateralPrice,
+        uint256 collateralDecimals
+    ) public pure returns (uint256, uint256) {
+        uint256 healthFactor =
+            getHealthFactor(debt, debt_price, debt_decimals, collateral, collateralPrice, collateralDecimals);
+
+        if (healthFactor > LIQUIDATION_HF_THRESHOLD) return (0, 0);
+
+        uint256 liquidationCloseFactor = healthFactor > CLOSE_FACTOR_HF_THRESHOLD ? 10 : 5;
+
+        uint256 debtToCover = debt * liquidationCloseFactor / 10;
 
         uint256 profitUsd = (debtToCover * debt_price) / 10 ** debt_decimals;
 
@@ -364,5 +400,22 @@ contract QualifyUserTest is Test {
         profitUsd = profitUsd / BPS_FACTOR;
 
         return (debtToCover, profitUsd);
+    }
+
+    function getHealthFactor(
+        uint256 debt,
+        uint256 debtPrice,
+        uint8 debtDecimals,
+        uint256 collateral,
+        uint256 collateralPrice,
+        uint256 collateralDecimals
+    ) public pure returns (uint256) {
+        uint256 debtUsd = debt * debtPrice / 10 ** debtDecimals;
+        uint256 collateralUsd = collateral * collateralPrice / 10 ** collateralDecimals;
+
+        uint256 healthFactor = collateralUsd * LIQUIDATION_THRESHOLD / BPS_FACTOR;
+        healthFactor = healthFactor * 1e18 / debtUsd;
+
+        return healthFactor;
     }
 }
