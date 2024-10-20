@@ -286,10 +286,9 @@ contract LiquidateUserTest is Test {
         MockPoolDataProvider(dataProviderAddress).setUserReserveData(
             user, borrowToken, 0, borrowAmount, 0, 0, 0, 0, 0, 0, true
         );
-        LiquidateUser.User[] memory user = new LiquidateUser.User[](1);
+        LiquidateUser.User memory user =
+            LiquidateUser.User({id: user, debtToken: address(borrowToken), collateralToken: address(supplyToken)});
 
-        user[0] = LiquidateUser.User({id: USER, debtToken: address(borrowToken), collateralToken: address(supplyToken)});
-
-        return user[0];
+        return user;
     }
 }

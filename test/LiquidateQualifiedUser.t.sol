@@ -149,7 +149,7 @@ contract LiquidateQualifiedUserTest is Test {
         vm.expectEmit(false, false, false, false, address(liquidateUser));
 
         // check user account with higher profit is liquidated
-        emit LiquidateAccount(address(liquidateUser), address(0), address(0), USER2);
+        emit LiquidateAccount(address(liquidateUser), address(0), address(0), USER);
 
         liquidateUser.liquidateAccount(user);
         vm.stopPrank();
