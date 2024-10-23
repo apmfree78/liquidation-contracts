@@ -308,8 +308,8 @@ contract LiquidateUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         // get collateral amount, token price, and liquidation values
         (,,,,,,,, bool useAsCollateral) = poolDataProvider.getUserReserveData(user.collateralToken, user.id);
 
-        uint256 liquidationThreshold = 1e18; // 0.5
-        if (healthFactor < CLOSE_FACTOR_HF_THRESHOLD) liquidationThreshold = 5e17;
+        uint256 liquidationThreshold = 5e17; // 0.5
+        if (healthFactor < CLOSE_FACTOR_HF_THRESHOLD) liquidationThreshold = 1e18;
 
         uint256 liquidationBonus = getAaveLiquidationBonus(user.collateralToken);
         uint256 debtPrice = priceOracle.getAssetPrice(user.debtToken);

@@ -13,8 +13,14 @@ import {QualifyUser} from "src/QualifyUser.sol";
 contract DeployQualifyUser is Script {
     function run() external returns (QualifyUser, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
-        (address poolAddress, address dataProviderAddress, address priceOracleAddress,,,,) =
-            helperConfig.activeNetworkConfig();
+        // (address poolAddress, address dataProviderAddress, address priceOracleAddress,,,,) =
+        //     helperConfig.activeNetworkConfig();
+        // HelperConfig.NetworkConfig memory config = helperConfig.activeNetworkConfig();
+        // Assign struct fields to local variables
+        address poolAddress = helperConfig.poolAddress;
+        address dataProviderAddress = helperConfig.dataProviderAddress;
+        address priceOracleAddress = helperConfig.priceOracleAddress;
+        address[] memory pricedInEth = helperConfig.pricedInEth;
 
         vm.startBroadcast();
         QualifyUser qualifyUser = new QualifyUser(poolAddress, dataProviderAddress, priceOracleAddress);
