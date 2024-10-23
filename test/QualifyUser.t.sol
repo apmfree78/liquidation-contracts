@@ -32,9 +32,9 @@ contract QualifyUserTest is Test {
     uint256 public constant SUPPLY_WETH = 37e17; //3.7 ETH
     uint256 public constant BORROW = 10000e6;
     uint256 public constant BPS_FACTOR = 1e4;
-    uint256 public constant USDT_PRICE = 1e18;
-    uint256 public constant WETH_PRICE = 3000e18;
-    uint256 public constant DAI_PRICE = 1e18;
+    uint256 public constant USDT_PRICE = 1e8;
+    uint256 public constant WETH_PRICE = 3000e8;
+    uint256 public constant DAI_PRICE = 1e8;
     uint8 public constant DAI_DECIMALS = 18;
     uint8 public constant USDT_DECIMALS = 6;
     uint8 public constant WETH_DECIMALS = 18;
@@ -234,7 +234,7 @@ contract QualifyUserTest is Test {
 
         (address userId, address debtToken, address collateralToken, uint256 debtToCover, uint256 profit) =
             qualifyUser.topProfitAccount();
-        assertEq(userId, USER, "User id does not match");
+        assertEq(userId, USER2, "User id does not match");
         assertEq(collateralToken, wethAddress, "collateral token does not match");
         assertEq(debtToken, address(usdt_token), "debt token does not match");
 
@@ -385,7 +385,7 @@ contract QualifyUserTest is Test {
 
         if (healthFactor > LIQUIDATION_HF_THRESHOLD) return (0, 0);
 
-        uint256 liquidationCloseFactor = healthFactor > CLOSE_FACTOR_HF_THRESHOLD ? 10 : 5;
+        uint256 liquidationCloseFactor = healthFactor > CLOSE_FACTOR_HF_THRESHOLD ? 5 : 10;
 
         uint256 debtToCover = debt * liquidationCloseFactor / 10;
 

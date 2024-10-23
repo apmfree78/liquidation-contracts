@@ -38,7 +38,6 @@ contract QualifyUser {
     uint256 private constant STANDARD_SCALE_FACTOR = 1e18;
     uint256 private constant BPS_FACTOR = 1e4;
     uint256 private constant CLOSE_FACTOR_HF_THRESHOLD = 95e16;
-    uint256 private constant AAVE_PRICE_ORACLE_FACTOR = 1e8;
 
     address private immutable i_aavePoolAddress;
     address private immutable i_aaveDataProviderAddress;
@@ -66,8 +65,8 @@ contract QualifyUser {
             (,,,,, uint256 healthFactor) = aavePool.getUserAccountData(id);
             console.log("health factor =>", healthFactor);
 
-            // if (healthFactor < LIQUIDATION_HF_THRESHOLD && healthFactor > MIN_HEALTH_SCORE_THRESHOLD) {
-            if (healthFactor > MIN_HEALTH_SCORE_THRESHOLD) {
+            if (healthFactor < LIQUIDATION_HF_THRESHOLD && healthFactor > MIN_HEALTH_SCORE_THRESHOLD) {
+                // if (healthFactor > MIN_HEALTH_SCORE_THRESHOLD) {
                 // checkout profitability
                 (uint256 profit, uint256 debtToCover) = getUserDebtToCoverAndProfit(users[i], healthFactor);
 
@@ -108,6 +107,9 @@ contract QualifyUser {
         uint256 liquidationBonus = getAaveLiquidationBonus(user.collateralToken);
         uint256 debtPrice = priceOracle.getAssetPrice(user.debtToken);
 
+        // uint256 totalDebt = stableDebt + variableDebt;
+        uint256 debtDecimalFactor = getTokenDecimalFactor(user.debtToken);
+
         console.log("debt token => ", user.debtToken);
         console.log("collateral token => ", user.collateralToken);
         console.log("total debt =>", totalDebt);
@@ -126,7 +128,7 @@ contract QualifyUser {
          *
          */
         if (liquidationBonus > 0 && useAsCollateral) {
-            uint256 profitUsd = (debtToCover * debtPrice) / AAVE_PRICE_ORACLE_FACTOR;
+            uint256 profitUsd = (debtToCover * debtPrice) / debtDecimalFactor;
 
             profitUsd = profitUsd * liquidationBonus;
 
@@ -137,7 +139,7 @@ contract QualifyUser {
             profitUsd = profitUsd / BPS_FACTOR;
 
             console.log("debtToCover ==>", debtToCover);
-            console.log("profit ==>", profitUsd);
+            console.log("profit (scaled by le8 ==>", profitUsd);
             return (profitUsd, debtToCover);
         } else {
             return (0, 0);
