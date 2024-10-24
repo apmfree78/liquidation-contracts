@@ -238,7 +238,7 @@ contract QualifyUserFunctionsTest is Test {
 
         (address userId, address debtToken, address collateralToken, uint256 debtToCover, uint256 profit) =
             qualifyUser.topProfitAccount();
-        assertEq(userId, USER, "User id does not match");
+        assertEq(userId, USER2, "User id does not match");
         assertEq(collateralToken, wethAddress, "collateral token does not match");
         assertEq(debtToken, address(usdt_token), "debt token does not match");
 
@@ -437,7 +437,7 @@ contract QualifyUserFunctionsTest is Test {
 
         if (healthFactor > LIQUIDATION_HF_THRESHOLD) return (0, 0);
 
-        uint256 liquidationCloseFactor = healthFactor > CLOSE_FACTOR_HF_THRESHOLD ? 10 : 5;
+        uint256 liquidationCloseFactor = healthFactor > CLOSE_FACTOR_HF_THRESHOLD ? 5 : 10;
 
         uint256 debtToCover = debt * liquidationCloseFactor / 10;
 
@@ -484,8 +484,8 @@ contract QualifyUserFunctionsTest is Test {
         // get collateral amount, token price, and liquidation values
         (,,,,,,,, bool useAsCollateral) = poolDataProvider.getUserReserveData(user.collateralToken, user.id);
 
-        uint256 liquidationThreshold = 1e18; // 0.5
-        if (healthFactor < CLOSE_FACTOR_HF_THRESHOLD) liquidationThreshold = 5e17;
+        uint256 liquidationThreshold = 5e17;
+        if (healthFactor < CLOSE_FACTOR_HF_THRESHOLD) liquidationThreshold = 1e18;
 
         uint256 liquidationBonus = getAaveLiquidationBonus(user.collateralToken);
         uint256 debtPrice = priceOracle.getAssetPrice(user.debtToken);

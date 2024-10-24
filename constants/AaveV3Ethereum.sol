@@ -29,7 +29,7 @@ library AaveV3Ethereum {
 
     // https://etherscan.io/address/0x20e074F62EcBD8BC5E38211adCb6103006113A22
     IPoolDataProvider internal constant AAVE_PROTOCOL_DATA_PROVIDER =
-        IPoolDataProvider(0x20e074F62EcBD8BC5E38211adCb6103006113A22);
+        IPoolDataProvider(0x41393e5e337606dc3821075Af65AeE84D7688CBD);
 
     // https://etherscan.io/address/0xc2aaCf6553D20d1e9d78E365AAba8032af9c85b0
     // IACLManager internal constant ACL_MANAGER = IACLManager(0xc2aaCf6553D20d1e9d78E365AAba8032af9c85b0);

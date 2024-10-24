@@ -29,9 +29,6 @@ contract HelperConfig is Script {
 
     // metamask wallet address
     address private constant wallet = 0xD55b88CbedD80c73a5bdcE00A15DdD5E05330daC;
-
-    address[] private pricedInEthAddresses;
-
     NetworkConfig public activeNetworkConfig;
 
     constructor() {

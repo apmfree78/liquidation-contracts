@@ -1,18 +1,11 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-import {console} from "lib/forge-std/src/Test.sol";
-import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+// import {console} from "lib/forge-std/src/Test.sol";
 import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/safeERC20.sol";
 import {IPool} from "lib/aave-v3-core/contracts/interfaces/IPool.sol";
 import {IPriceOracle} from "lib/aave-v3-core/contracts/interfaces/IPriceOracle.sol";
-import {IFlashLoanSimpleReceiver} from "lib/aave-v3-core/contracts/flashloan/interfaces/IFlashLoanSimpleReceiver.sol";
-import {IPoolDataProvider, IPoolAddressesProvider} from "lib/aave-v3-core/contracts/interfaces/IPoolDataProvider.sol";
-import {ISwapRouter} from "lib/v3-periphery/contracts/interfaces/ISwapRouter.sol";
-import "utils/ReentracyGuard.sol";
-
-using SafeERC20 for IERC20;
+import {IPoolDataProvider} from "lib/aave-v3-core/contracts/interfaces/IPoolDataProvider.sol";
 
 contract QualifyUser {
     error NoUserAccountQualifiedForLiquidation();
@@ -63,7 +56,7 @@ contract QualifyUser {
 
             // get health factor
             (,,,,, uint256 healthFactor) = aavePool.getUserAccountData(id);
-            console.log("health factor =>", healthFactor);
+            // console.log("health factor =>", healthFactor);
 
             if (healthFactor < LIQUIDATION_HF_THRESHOLD && healthFactor > MIN_HEALTH_SCORE_THRESHOLD) {
                 // if (healthFactor > MIN_HEALTH_SCORE_THRESHOLD) {
@@ -110,10 +103,10 @@ contract QualifyUser {
         // uint256 totalDebt = stableDebt + variableDebt;
         uint256 debtDecimalFactor = getTokenDecimalFactor(user.debtToken);
 
-        console.log("debt token => ", user.debtToken);
-        console.log("collateral token => ", user.collateralToken);
-        console.log("total debt =>", totalDebt);
-        console.log("debt token Price =>", debtPrice);
+        // console.log("debt token => ", user.debtToken);
+        // console.log("collateral token => ", user.collateralToken);
+        // console.log("total debt =>", totalDebt);
+        // console.log("debt token Price =>", debtPrice);
 
         /**
          * CALCULATE DEBT TO COVER - THIS WILL DETERMINE HOW MUCH COLLATERAL TO BORROW FROM FLASH FLOAN
@@ -138,8 +131,8 @@ contract QualifyUser {
 
             profitUsd = profitUsd / BPS_FACTOR;
 
-            console.log("debtToCover ==>", debtToCover);
-            console.log("profit (scaled by le8 ==>", profitUsd);
+            // console.log("debtToCover ==>", debtToCover);
+            // console.log("profit (scaled by le8 ==>", profitUsd);
             return (profitUsd, debtToCover);
         } else {
             return (0, 0);
