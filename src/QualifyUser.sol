@@ -24,8 +24,6 @@ contract QualifyUser {
         uint256 profit;
     }
 
-    TopProfitUserAccount public topProfitAccount;
-
     uint256 private constant LIQUIDATION_HF_THRESHOLD = 1e18;
     uint256 private constant MIN_HEALTH_SCORE_THRESHOLD = 1e17;
     uint256 private constant STANDARD_SCALE_FACTOR = 1e18;
@@ -42,7 +40,7 @@ contract QualifyUser {
         i_aavePriceOracleAddress = aavePriceOracleAddress;
     }
 
-    function checkUserAccounts(User[] calldata users) external {
+    function checkUserAccounts(User[] calldata users) external view returns (TopProfitUserAccount memory) {
         uint256 userCount = users.length;
         IPool aavePool = IPool(i_aavePoolAddress);
         uint256 maxProfit = 0;
@@ -77,8 +75,8 @@ contract QualifyUser {
             }
         }
 
-        // save state
-        topProfitAccount = userAccount;
+        // return top user account
+        return userAccount;
     }
 
     function getUserDebtToCoverAndProfit(User calldata user, uint256 healthFactor)

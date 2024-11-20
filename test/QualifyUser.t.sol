@@ -161,10 +161,15 @@ contract QualifyUserTest is Test {
         // creat aave user account
         vm.startPrank(USER);
 
-        qualifyUser.checkUserAccounts(user);
+        QualifyUser.TopProfitUserAccount memory topProfitUserAccount = qualifyUser.checkUserAccounts(user);
 
-        (address userId, address debtToken, address collateralToken, uint256 debtToCover, uint256 profit) =
-            qualifyUser.topProfitAccount();
+        // Access struct members individually using dot notation
+        address userId = topProfitUserAccount.userId;
+        address debtToken = topProfitUserAccount.debtToken;
+        address collateralToken = topProfitUserAccount.collateralToken;
+        uint256 debtToCover = topProfitUserAccount.debtToCover;
+        uint256 profit = topProfitUserAccount.profit;
+
         assertEq(userId, USER, "User id does not match");
         assertEq(collateralToken, wethAddress, "collateral token does not match");
         assertEq(debtToken, address(usdt_token), "debt token does not match");
@@ -186,8 +191,15 @@ contract QualifyUserTest is Test {
         vm.startPrank(USER);
         qualifyUser.checkUserAccounts(user);
 
-        (address userId, address debtToken, address collateralToken, uint256 debtToCover, uint256 profit) =
-            qualifyUser.topProfitAccount();
+        QualifyUser.TopProfitUserAccount memory topProfitUserAccount = qualifyUser.checkUserAccounts(user);
+
+        // Access struct members individually using dot notation
+        address userId = topProfitUserAccount.userId;
+        address debtToken = topProfitUserAccount.debtToken;
+        address collateralToken = topProfitUserAccount.collateralToken;
+        uint256 debtToCover = topProfitUserAccount.debtToCover;
+        uint256 profit = topProfitUserAccount.profit;
+
         assertEq(userId, USER, "User id does not match");
         assertEq(collateralToken, wethAddress, "collateral token does not match");
         assertEq(debtToken, address(usdt_token), "debt token does not match");
@@ -209,8 +221,15 @@ contract QualifyUserTest is Test {
         vm.startPrank(USER);
         qualifyUser.checkUserAccounts(user);
 
-        (address userId, address debtToken, address collateralToken, uint256 debtToCover, uint256 profit) =
-            qualifyUser.topProfitAccount();
+        QualifyUser.TopProfitUserAccount memory topProfitUserAccount = qualifyUser.checkUserAccounts(user);
+
+        // Access struct members individually using dot notation
+        address userId = topProfitUserAccount.userId;
+        address debtToken = topProfitUserAccount.debtToken;
+        address collateralToken = topProfitUserAccount.collateralToken;
+        uint256 debtToCover = topProfitUserAccount.debtToCover;
+        uint256 profit = topProfitUserAccount.profit;
+
         assertEq(userId, USER, "User id does not match");
         assertEq(collateralToken, wethAddress, "collateral token does not match");
         assertEq(debtToken, address(usdt_token), "debt token does not match");
@@ -232,8 +251,15 @@ contract QualifyUserTest is Test {
         vm.startPrank(USER);
         qualifyUser.checkUserAccounts(user);
 
-        (address userId, address debtToken, address collateralToken, uint256 debtToCover, uint256 profit) =
-            qualifyUser.topProfitAccount();
+        QualifyUser.TopProfitUserAccount memory topProfitUserAccount = qualifyUser.checkUserAccounts(user);
+
+        // Access struct members individually using dot notation
+        address userId = topProfitUserAccount.userId;
+        address debtToken = topProfitUserAccount.debtToken;
+        address collateralToken = topProfitUserAccount.collateralToken;
+        uint256 debtToCover = topProfitUserAccount.debtToCover;
+        uint256 profit = topProfitUserAccount.profit;
+
         assertEq(userId, USER2, "User id does not match");
         assertEq(collateralToken, wethAddress, "collateral token does not match");
         assertEq(debtToken, address(usdt_token), "debt token does not match");
@@ -256,8 +282,15 @@ contract QualifyUserTest is Test {
         vm.startPrank(USER);
         qualifyUser.checkUserAccounts(user);
 
-        (address userId, address debtToken, address collateralToken, uint256 debtToCover, uint256 profit) =
-            qualifyUser.topProfitAccount();
+        QualifyUser.TopProfitUserAccount memory topProfitUserAccount = qualifyUser.checkUserAccounts(user);
+
+        // Access struct members individually using dot notation
+        address userId = topProfitUserAccount.userId;
+        address debtToken = topProfitUserAccount.debtToken;
+        address collateralToken = topProfitUserAccount.collateralToken;
+        uint256 debtToCover = topProfitUserAccount.debtToCover;
+        uint256 profit = topProfitUserAccount.profit;
+
         assertEq(userId, address(0), "User id does not match");
         assertEq(collateralToken, address(0), "collateral token does not match");
         assertEq(debtToken, address(0), "debt token does not match");
@@ -283,9 +316,15 @@ contract QualifyUserTest is Test {
         // creat aave user account
         vm.startPrank(USER);
 
-        qualifyUser.checkUserAccounts(user);
-        (address userId, address debtToken, address collateralToken, uint256 debtToCover, uint256 profit) =
-            qualifyUser.topProfitAccount();
+        QualifyUser.TopProfitUserAccount memory topProfitUserAccount = qualifyUser.checkUserAccounts(user);
+
+        // Access struct members individually using dot notation
+        address userId = topProfitUserAccount.userId;
+        address debtToken = topProfitUserAccount.debtToken;
+        address collateralToken = topProfitUserAccount.collateralToken;
+        uint256 debtToCover = topProfitUserAccount.debtToCover;
+        uint256 profit = topProfitUserAccount.profit;
+
         assertEq(userId, address(0), "User id does not match");
         assertEq(collateralToken, address(0), "collateral token does not match");
         assertEq(debtToken, address(0), "debt token does not match");
@@ -303,8 +342,15 @@ contract QualifyUserTest is Test {
 
         qualifyUser.checkUserAccounts(user);
 
-        (address userId, address debtToken, address collateralToken, uint256 debtToCover, uint256 profit) =
-            qualifyUser.topProfitAccount();
+        QualifyUser.TopProfitUserAccount memory topProfitUserAccount = qualifyUser.checkUserAccounts(user);
+
+        // Access struct members individually using dot notation
+        address userId = topProfitUserAccount.userId;
+        address debtToken = topProfitUserAccount.debtToken;
+        address collateralToken = topProfitUserAccount.collateralToken;
+        uint256 debtToCover = topProfitUserAccount.debtToCover;
+        uint256 profit = topProfitUserAccount.profit;
+
         assertEq(userId, address(0), "User id does not match");
         assertEq(collateralToken, address(0), "collateral token does not match");
         assertEq(debtToken, address(0), "debt token does not match");
@@ -320,9 +366,15 @@ contract QualifyUserTest is Test {
         // creat aave user account
         vm.startPrank(USER);
 
-        qualifyUser.checkUserAccounts(user);
-        (address userId, address debtToken, address collateralToken, uint256 debtToCover, uint256 profit) =
-            qualifyUser.topProfitAccount();
+        QualifyUser.TopProfitUserAccount memory topProfitUserAccount = qualifyUser.checkUserAccounts(user);
+
+        // Access struct members individually using dot notation
+        address userId = topProfitUserAccount.userId;
+        address debtToken = topProfitUserAccount.debtToken;
+        address collateralToken = topProfitUserAccount.collateralToken;
+        uint256 debtToCover = topProfitUserAccount.debtToCover;
+        uint256 profit = topProfitUserAccount.profit;
+
         assertEq(userId, address(0), "User id does not match");
         assertEq(collateralToken, address(0), "collateral token does not match");
         assertEq(debtToken, address(0), "debt token does not match");
@@ -338,9 +390,15 @@ contract QualifyUserTest is Test {
         // creat aave user account
         vm.startPrank(USER);
 
-        qualifyUser.checkUserAccounts(user);
-        (address userId, address debtToken, address collateralToken, uint256 debtToCover, uint256 profit) =
-            qualifyUser.topProfitAccount();
+        QualifyUser.TopProfitUserAccount memory topProfitUserAccount = qualifyUser.checkUserAccounts(user);
+
+        // Access struct members individually using dot notation
+        address userId = topProfitUserAccount.userId;
+        address debtToken = topProfitUserAccount.debtToken;
+        address collateralToken = topProfitUserAccount.collateralToken;
+        uint256 debtToCover = topProfitUserAccount.debtToCover;
+        uint256 profit = topProfitUserAccount.profit;
+
         assertEq(userId, address(0), "User id does not match");
         assertEq(collateralToken, address(0), "collateral token does not match");
         assertEq(debtToken, address(0), "debt token does not match");

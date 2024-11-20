@@ -20,7 +20,11 @@ contract QualifyUserSepoliaTest is Test {
         sepoliaUsers.push(QualifyUser.User({id: testUser, debtToken: USDT_ADDRESS, collateralToken: WETH_ADDRESS}));
     }
 
-    function testWithSameDebtAndCollateralToken() public {
-        qualifyUser.checkUserAccounts(sepoliaUsers);
+    function testWithSameDebtAndCollateralToken() public view {
+        QualifyUser.TopProfitUserAccount memory topProfitUserAccount = qualifyUser.checkUserAccounts(sepoliaUsers);
+        console.log("user id =>", topProfitUserAccount.userId);
+        console.log("collateral token =>", topProfitUserAccount.collateralToken);
+        console.log("debt token =>", topProfitUserAccount.debtToken);
+        console.log("profit =>", topProfitUserAccount.profit);
     }
 }

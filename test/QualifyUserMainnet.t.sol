@@ -20,7 +20,11 @@ contract QualifyUserMainnetTest is Test {
         mainnetUsers.push(QualifyUser.User({id: testUser, debtToken: USDT_ADDRESS, collateralToken: WETH_ADDRESS}));
     }
 
-    function testWithSameDebtAndCollateralToken() public {
-        qualifyUser.checkUserAccounts(mainnetUsers);
+    function testWithSameDebtAndCollateralToken() public view {
+        QualifyUser.TopProfitUserAccount memory topProfitUserAccount = qualifyUser.checkUserAccounts(mainnetUsers);
+        console.log("user id =>", topProfitUserAccount.userId);
+        console.log("collateral token =>", topProfitUserAccount.collateralToken);
+        console.log("debt token =>", topProfitUserAccount.debtToken);
+        console.log("profit =>", topProfitUserAccount.profit);
     }
 }
