@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.18;
 
-import {console} from "lib/forge-std/src/Test.sol";
+// import {console} from "lib/forge-std/src/Test.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/safeERC20.sol";
@@ -71,11 +71,11 @@ contract LiquidateQualifiedUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
                 && user.debtToken != address(0)
         ) {
             // FLASH LOAN for DebtToken amount of DebtToCover
-            console.log("debt to Cover => ", user.debtToCover);
+            // console.log("debt to Cover => ", user.debtToCover);
             bytes memory params = abi.encode(user.collateralToken, user.id);
             aavePool.flashLoanSimple(address(this), user.debtToken, user.debtToCover, params, 0);
 
-            console.log("flashloan successfully executed and liquidation successful!");
+            // console.log("flashloan successfully executed and liquidation successful!");
             emit LiquidateAccount(address(this), i_walletAddress, user.collateralToken, user.id);
 
             // send tip to MINER
@@ -98,7 +98,7 @@ contract LiquidateQualifiedUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
             debtToCover: amount
         });
 
-        console.log("liquidating account!");
+        // console.log("liquidating account!");
         liquidateAccount(account);
 
         // now that account is liquidated need to swap the collateral token recieved for
@@ -106,11 +106,11 @@ contract LiquidateQualifiedUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         IERC20 collateralToken = IERC20(collateralTokenAddress);
 
         if (collateralTokenAddress != asset) {
-            console.log("swapping collateral token debt token to pay off debt");
+            // console.log("swapping collateral token debt token to pay off debt");
             swapCollateralForDebtTokenToRepayLoan(collateralTokenAddress, asset, amount + premium);
         }
 
-        console.log("collateral token balance AFTER swap => ", collateralToken.balanceOf(address(this)));
+        // console.log("collateral token balance AFTER swap => ", collateralToken.balanceOf(address(this)));
 
         // if collateral is not WETH then convert collateral to WETH
         if (collateralTokenAddress != i_wethAddress) {
@@ -118,11 +118,11 @@ contract LiquidateQualifiedUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
 
             if (collateralTokenAddress == asset) amountToSwapToETH -= amount + premium;
 
-            console.log("swapping collateral token for WETH");
+            // console.log("swapping collateral token for WETH");
             swapCollateralForWETH(collateralTokenAddress, amountToSwapToETH);
         }
 
-        console.log("transfering remaining tokens (above what is owned) to wallet");
+        // console.log("transfering remaining tokens (above what is owned) to wallet");
         transferProfitToWallet(collateralTokenAddress, asset, amount + premium);
         return true;
     }
@@ -168,7 +168,7 @@ contract LiquidateQualifiedUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         swapRouter.exactOutputSingle(swapParams);
 
         // check swap was a successful
-        console.log("token swap successful");
+        // console.log("token swap successful");
         if (debtToken.balanceOf(address(this)) < loanRepaymentAmount) {
             revert InsufficientBalanceToPayLoan();
         }
@@ -184,7 +184,7 @@ contract LiquidateQualifiedUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         if (amountIn == 0) revert NoCollateralToken();
 
         uint256 amountOutMin = getAmountOutSlippage(collateralTokenAddress, i_wethAddress, amountIn);
-        console.log("calcualted amount out min", amountOutMin);
+        // console.log("calcualted amount out min", amountOutMin);
 
         ISwapRouter.ExactInputSingleParams memory swapParams = ISwapRouter.ExactInputSingleParams({
             tokenIn: collateralTokenAddress,
@@ -216,10 +216,10 @@ contract LiquidateQualifiedUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
                 account.user.collateralToken, account.user.debtToken, account.user.id, account.debtToCover, false
             );
 
-            console.log("debt Token balance after liquidation =>", debtToken.balanceOf(address(this)));
-            console.log("Liqudation executed!");
+            // console.log("debt Token balance after liquidation =>", debtToken.balanceOf(address(this)));
+            // console.log("Liqudation executed!");
         } else {
-            console.log("Not enough tokens to cover the liqudation");
+            // console.log("Not enough tokens to cover the liqudation");
             revert NotEnoughDebtTokenToCoverLiquidation();
         }
     }
@@ -236,27 +236,27 @@ contract LiquidateQualifiedUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
 
         if (wethAmount > 0 && debtTokenAddress != i_wethAddress) {
             wethToken.safeTransfer(i_walletAddress, wethAmount);
-            console.log("profit taken of amount WETH", wethAmount);
+            // console.log("profit taken of amount WETH", wethAmount);
         }
 
         uint256 collateralAmount = collateralToken.balanceOf(address(this));
 
         if (collateralAmount > 0 && collateralTokenAddress != debtTokenAddress) {
             collateralToken.safeTransfer(i_walletAddress, collateralAmount);
-            console.log("profit taken of amount (collateral Token)", collateralAmount);
+            // console.log("profit taken of amount (collateral Token)", collateralAmount);
         }
 
         if (debtAmount > repaymentAmount) {
             uint256 remainingBalance = debtAmount - repaymentAmount;
-            console.log("caculated remaining balance", remainingBalance);
-            console.log("actual remaining balance", debtToken.balanceOf(address(this)));
+            // console.log("caculated remaining balance", remainingBalance);
+            // console.log("actual remaining balance", debtToken.balanceOf(address(this)));
 
             debtToken.safeTransfer(i_walletAddress, remainingBalance);
 
             uint256 debtBalance = debtToken.balanceOf(address(this));
             if (debtBalance < repaymentAmount) revert InsufficientBalanceToPayLoan();
 
-            console.log("profit taken of amount (outstading debt token)", remainingBalance);
+            // console.log("profit taken of amount (outstading debt token)", remainingBalance);
         }
     }
 
