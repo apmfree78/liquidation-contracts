@@ -16,19 +16,16 @@ import {HelperConfig} from "script/HelperConfig.s.sol";
 import "lib/aave-v3-core/contracts/interfaces/IPool.sol";
 
 contract LiquidateQualifiedUserTest is Test {
-    struct Users {
-        address id;
-        address debtToken;
-        address collateralToken;
-    }
-
     uint256 private constant LIQUIDATION_THRESHOLD = 7000; // set fixed 70% liquidation threshold for testing
     uint256 private constant LIQUIDATION_BONUS = 10500; // set fixed 10% liquidation bonus for testing
     uint256 public constant STARTING_USER_BALANCE = 10000 ether;
     uint256 public constant STARTING_TOKEN_AMOUNT = 10000 ether;
     uint256 public constant SUPPLY = 10000e6;
+    uint256 public constant SUPPLY_DAI = 10000e18;
     uint256 public constant SUPPLY_WETH = 37e17; //3.7 ETH
+    uint256 public constant BORROW_WETH = 37e17; //3.7 ETH
     uint256 public constant BORROW = 10000e6;
+    uint256 public constant BORROW_DAI = 10000e18;
 
     address public poolAddress;
     address public dataProviderAddress;
@@ -39,6 +36,7 @@ contract LiquidateQualifiedUserTest is Test {
     address public walletAddress;
 
     LiquidateQualifiedUser liquidateUser;
+    HelperConfig helperConfig;
     MintableERC20 public usdt_token;
     MintableERC20 public dai_token;
     WETH9Mocked public weth;
@@ -51,7 +49,6 @@ contract LiquidateQualifiedUserTest is Test {
 
     function setUp() external {
         DeployLiquidateQualifiedUser deployLiquidateQualifiedUser = new DeployLiquidateQualifiedUser();
-        HelperConfig helperConfig;
         (liquidateUser, helperConfig) = deployLiquidateQualifiedUser.run();
 
         // set address for contracts
@@ -133,9 +130,47 @@ contract LiquidateQualifiedUserTest is Test {
             setupUser(USER, address(usdt_token), address(usdt_token), SUPPLY, BORROW);
         // creat aave user account
         vm.startPrank(USER);
-        vm.expectEmit(false, false, false, false, address(liquidateUser));
+        vm.expectEmit(true, true, true, true, address(liquidateUser));
 
-        emit LiquidateAccount(address(liquidateUser), address(0), address(0), USER);
+        emit LiquidateAccount(address(liquidateUser), walletAddress, address(usdt_token), USER);
+
+        liquidateUser.liquidateAccount(user);
+        vm.stopPrank();
+    }
+
+    function testWithUsdtDebtAndDaiCollateral() public {
+        LiquidateQualifiedUser.User memory user =
+            setupUser(USER, address(dai_token), address(usdt_token), SUPPLY_DAI, BORROW);
+        // creat aave user account
+        vm.startPrank(USER);
+        vm.expectEmit(true, true, true, true, address(liquidateUser));
+
+        emit LiquidateAccount(address(liquidateUser), walletAddress, address(dai_token), USER);
+
+        liquidateUser.liquidateAccount(user);
+        vm.stopPrank();
+    }
+
+    function testWithDaiDebtAndUsdtCollateral() public {
+        LiquidateQualifiedUser.User memory user =
+            setupUser(USER, address(usdt_token), address(dai_token), SUPPLY, BORROW_DAI);
+        // creat aave user account
+        vm.startPrank(USER);
+        vm.expectEmit(true, true, true, true, address(liquidateUser));
+
+        emit LiquidateAccount(address(liquidateUser), walletAddress, address(usdt_token), USER);
+
+        liquidateUser.liquidateAccount(user);
+        vm.stopPrank();
+    }
+
+    function testWithWethDebtAndUsdtCollateral() public {
+        LiquidateQualifiedUser.User memory user = setupUser(USER, address(usdt_token), wethAddress, SUPPLY, BORROW_WETH);
+        // creat aave user account
+        vm.startPrank(USER);
+        vm.expectEmit(true, true, true, true, address(liquidateUser));
+
+        emit LiquidateAccount(address(liquidateUser), walletAddress, address(usdt_token), USER);
 
         liquidateUser.liquidateAccount(user);
         vm.stopPrank();
@@ -146,11 +181,9 @@ contract LiquidateQualifiedUserTest is Test {
             setupUser(USER, wethAddress, address(usdt_token), 2 * SUPPLY_WETH, 2 * BORROW);
         // creat aave user account
         vm.startPrank(USER);
-        vm.expectEmit(false, false, false, false, address(liquidateUser));
+        vm.expectEmit(true, true, true, true, address(liquidateUser));
 
-        // check user account with higher profit is liquidated
-        emit LiquidateAccount(address(liquidateUser), address(0), address(0), USER);
-
+        emit LiquidateAccount(address(liquidateUser), walletAddress, wethAddress, USER);
         liquidateUser.liquidateAccount(user);
         vm.stopPrank();
     }

@@ -32,15 +32,8 @@ contract LiquidateQualifiedUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         uint256 debtToCover;
     }
 
-    uint256 private constant LIQUIDATION_THRESHOLD = 1e18;
-    uint256 private constant MIN_HEALTH_SCORE_THRESHOLD = 1e17;
-    uint256 private constant PROFIT_THRESHOLD = 50e18; // TODO - update to $100??
-    uint256 private constant STANDARD_SCALE_FACTOR = 1e18;
-    uint256 private constant BPS_FACTOR = 1e4;
-    uint256 private constant CLOSE_FACTOR_HF_THRESHOLD = 95e16;
     uint24 private constant FEE_DENOMINATOR = 1e6; // To represent fee in parts per million for precision
-    uint24 private constant FEE_PERCENTAGE = 3000; // Fee percentage in basis points, example: 0.3%
-    uint24 private constant MAX_SLIPPAGE_TOLERANCE = 10000; // Fee percentage in basis points, example: 0.3%
+    uint24 private constant MAX_SLIPPAGE_TOLERANCE = 20000; // Fee percentage in basis points, 2% in this case
 
     address private immutable i_aavePoolAddress;
     address private immutable i_aavePriceOracleAddress;
@@ -118,13 +111,16 @@ contract LiquidateQualifiedUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         }
 
         console.log("collateral token balance AFTER swap => ", collateralToken.balanceOf(address(this)));
-        // TODO - if collateral is not WETH then convert collateral to WETH
-        uint256 amountToSwapToETH = collateralToken.balanceOf(address(this));
 
-        if (collateralTokenAddress == asset) amountToSwapToETH -= amount + premium;
+        // if collateral is not WETH then convert collateral to WETH
+        if (collateralTokenAddress != i_wethAddress) {
+            uint256 amountToSwapToETH = collateralToken.balanceOf(address(this));
 
-        console.log("swapping collateral token for WETH");
-        swapCollateralForWETH(collateralTokenAddress, amountToSwapToETH);
+            if (collateralTokenAddress == asset) amountToSwapToETH -= amount + premium;
+
+            console.log("swapping collateral token for WETH");
+            swapCollateralForWETH(collateralTokenAddress, amountToSwapToETH);
+        }
 
         console.log("transfering remaining tokens (above what is owned) to wallet");
         transferProfitToWallet(collateralTokenAddress, asset, amount + premium);
@@ -166,7 +162,9 @@ contract LiquidateQualifiedUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         });
 
         // token swap
-        collateralToken.approve(address(swapRouter), amountInMax);
+        if (collateralToken.allowance(address(this), address(swapRouter)) < amountIn) {
+            collateralToken.approve(address(swapRouter), amountIn);
+        }
         swapRouter.exactOutputSingle(swapParams);
 
         // check swap was a successful
@@ -186,6 +184,7 @@ contract LiquidateQualifiedUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         if (amountIn == 0) revert NoCollateralToken();
 
         uint256 amountOutMin = getAmountOutSlippage(collateralTokenAddress, i_wethAddress, amountIn);
+        console.log("calcualted amount out min", amountOutMin);
 
         ISwapRouter.ExactInputSingleParams memory swapParams = ISwapRouter.ExactInputSingleParams({
             tokenIn: collateralTokenAddress,
@@ -199,7 +198,9 @@ contract LiquidateQualifiedUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         });
 
         // token swap
-        collateralToken.approve(address(swapRouter), amountIn);
+        if (collateralToken.allowance(address(this), address(swapRouter)) < amountIn) {
+            collateralToken.approve(address(swapRouter), amountIn);
+        }
         swapRouter.exactInputSingle(swapParams);
     }
 
@@ -233,7 +234,7 @@ contract LiquidateQualifiedUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
         uint256 debtAmount = debtToken.balanceOf(address(this));
         uint256 wethAmount = wethToken.balanceOf(address(this));
 
-        if (wethAmount > 0) {
+        if (wethAmount > 0 && debtTokenAddress != i_wethAddress) {
             wethToken.safeTransfer(i_walletAddress, wethAmount);
             console.log("profit taken of amount WETH", wethAmount);
         }
@@ -247,7 +248,9 @@ contract LiquidateQualifiedUser is IFlashLoanSimpleReceiver, ReentrancyGuard {
 
         if (debtAmount > repaymentAmount) {
             uint256 remainingBalance = debtAmount - repaymentAmount;
-            console.log("remaining balance", remainingBalance);
+            console.log("caculated remaining balance", remainingBalance);
+            console.log("actual remaining balance", debtToken.balanceOf(address(this)));
+
             debtToken.safeTransfer(i_walletAddress, remainingBalance);
 
             uint256 debtBalance = debtToken.balanceOf(address(this));
